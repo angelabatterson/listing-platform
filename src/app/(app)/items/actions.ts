@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { channelListings, connections, itemImages, items } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { parseSpecifics } from "@/lib/specifics";
 import { syncItem } from "@/lib/sync/run";
 
 export type ItemFormState = { error?: string } | undefined;
@@ -28,6 +29,7 @@ const itemSchema = z.object({
   brand: z.string().trim().optional(),
   status: z.enum(["draft", "active"]),
   imageUrls: z.string().default(""),
+  specifics: z.string().default(""),
 });
 
 export async function saveItem(
@@ -49,6 +51,7 @@ export async function saveItem(
     quantity: data.quantity,
     condition: data.condition,
     brand: data.brand || null,
+    attributes: parseSpecifics(data.specifics),
     status: data.status,
   };
   const imageUrls = data.imageUrls

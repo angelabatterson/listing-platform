@@ -15,7 +15,10 @@ export type ItemFormValues = {
   brand: string;
   status: "draft" | "active";
   imageUrls: string;
+  specifics: string;
   skuLocked: boolean;
+  // A search phrase the AI suggested for finding the category, on drafted items.
+  categoryHint?: string;
 };
 
 export type StoreOption = {
@@ -88,9 +91,25 @@ export function ItemForm(props: {
           <textarea id="description" name="description" rows={6} className="input" defaultValue={v.description} />
         </div>
         <div className="sm:col-span-2">
+          <label className="label" htmlFor="specifics">Item specifics (one per line)</label>
+          <textarea
+            id="specifics"
+            name="specifics"
+            rows={5}
+            className="input"
+            defaultValue={v.specifics}
+            placeholder={"Size: M\nColor: Blue\nMaterial: Cotton, Polyester"}
+          />
+          <p className="mt-1 text-xs text-zinc-500">
+            The details buyers filter by on eBay. Write each as &quot;Name: value&quot;, with commas between several values.
+          </p>
+        </div>
+        <div className="sm:col-span-2">
           <label className="label" htmlFor="imageUrls">Photo links (one per line, https://)</label>
           <textarea id="imageUrls" name="imageUrls" rows={3} className="input font-mono text-xs" defaultValue={v.imageUrls} />
-          <p className="mt-1 text-xs text-zinc-500">Photo uploads are coming. For now, paste links to hosted photos.</p>
+          <p className="mt-1 text-xs text-zinc-500">
+            The first photo is the main one. Upload photos from a photo batch, or paste links to hosted photos.
+          </p>
         </div>
       </section>
 
@@ -116,6 +135,9 @@ export function ItemForm(props: {
                     {s.marketplace === "ebay" ? "eBay" : "Etsy"} category ID
                   </label>
                   <input id={`category_${s.connectionId}`} name={`category_${s.connectionId}`} className="input" defaultValue={s.categoryId} />
+                  {v.categoryHint && !s.categoryId && (
+                    <p className="mt-1 text-xs text-zinc-500">AI suggestion: search the category list for &quot;{v.categoryHint}&quot;.</p>
+                  )}
                 </div>
                 {s.marketplace === "etsy" && (
                   <div>

@@ -28,6 +28,7 @@ export default async function NewItemPage() {
           brand: "",
           status: "active",
           imageUrls: "",
+          specifics: "",
           skuLocked: false,
         }}
       />

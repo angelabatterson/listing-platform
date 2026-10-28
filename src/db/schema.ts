@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm";
 import {
   boolean,
+  customType,
   integer,
   jsonb,
   pgEnum,
@@ -120,6 +121,27 @@ export const connections = pgTable(
 
 export type ItemAttributes = Record<string, string[]>;
 
+// Notes the AI left on a drafted item, used by later steps (category search, review).
+export type DraftNotes = {
+  categoryQuery?: string;
+  priceNote?: string;
+  whenMade?: string;
+};
+
+// A set of photos uploaded together. Its number gives drafted items their SKUs ("B12-3").
+export const batches = pgTable(
+  "batches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    number: integer("number").notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("batches_org_number").on(t.organizationId, t.number)],
+);
+
 // The master record for one thing a client is selling.
 export const items = pgTable(
   "items",
@@ -138,6 +160,8 @@ export const items = pgTable(
     brand: text("brand"),
     attributes: jsonb("attributes").$type<ItemAttributes>().default({}).notNull(),
     status: itemStatusEnum("status").default("draft").notNull(),
+    batchId: uuid("batch_id").references(() => batches.id, { onDelete: "set null" }),
+    draftNotes: jsonb("draft_notes").$type<DraftNotes>().default({}).notNull(),
     ...timestamps,
   },
   (t) => [uniqueIndex("items_org_sku").on(t.organizationId, t.sku)],
@@ -150,6 +174,28 @@ export const itemImages = pgTable("item_images", {
     .references(() => items.id, { onDelete: "cascade" }),
   url: text("url").notNull(),
   position: integer("position").notNull().default(0),
+});
+
+const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
+
+// An uploaded photo, already resized in the browser. Kept in Postgres so there's no
+// separate file store to set up; served to marketplaces through a signed link
+// (see lib/photos). `groupKey` is the item the photo was sorted into before drafting.
+export const photos = pgTable("photos", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  batchId: uuid("batch_id")
+    .notNull()
+    .references(() => batches.id, { onDelete: "cascade" }),
+  itemId: uuid("item_id").references(() => items.id, { onDelete: "set null" }),
+  groupKey: integer("group_key"),
+  position: integer("position").notNull(),
+  fileName: text("file_name"),
+  data: bytea("data").notNull(),
+  thumb: bytea("thumb").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export type ListingOverrides = {
@@ -222,7 +268,18 @@ export const sales = pgTable(
   (t) => [uniqueIndex("sales_connection_line").on(t.connectionId, t.externalLineId)],
 );
 
-export const itemsRelations = relations(items, ({ many }) => ({
+export const batchesRelations = relations(batches, ({ many }) => ({
+  photos: many(photos),
+  items: many(items),
+}));
+
+export const photosRelations = relations(photos, ({ one }) => ({
+  batch: one(batches, { fields: [photos.batchId], references: [batches.id] }),
+  item: one(items, { fields: [photos.itemId], references: [items.id] }),
+}));
+
+export const itemsRelations = relations(items, ({ one, many }) => ({
+  batch: one(batches, { fields: [items.batchId], references: [batches.id] }),
   images: many(itemImages),
   listings: many(channelListings),
 }));
@@ -240,6 +297,8 @@ export const channelListingsRelations = relations(channelListings, ({ one }) => 
 }));
 
 export type Item = typeof items.$inferSelect;
+export type Batch = typeof batches.$inferSelect;
+export type Photo = typeof photos.$inferSelect;
 export type ItemImage = typeof itemImages.$inferSelect;
 export type Connection = typeof connections.$inferSelect;
 export type ChannelListing = typeof channelListings.$inferSelect;

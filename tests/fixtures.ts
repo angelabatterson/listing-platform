@@ -16,6 +16,8 @@ export function makeItem(overrides: Partial<ItemWithImages> = {}): ItemWithImage
     brand: "Levi's",
     attributes: { Size: ["M"] },
     status: "active",
+    batchId: null,
+    draftNotes: {},
     createdAt: new Date(),
     updatedAt: new Date(),
     images: [

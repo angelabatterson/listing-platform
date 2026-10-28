@@ -7,13 +7,15 @@ import { encrypt } from "@/lib/crypto";
 const user = { id: "", organizationId: "", email: "a@b.c" };
 vi.mock("@/lib/auth", () => ({ requireUser: async () => user }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+const syncItem = vi.fn(async () => [{ store: "eBay", action: "publish", ok: true }]);
+vi.mock("@/lib/sync/run", () => ({ syncItem: (...args: unknown[]) => syncItem(...(args as [])) }));
 const askForJson = vi.fn();
 vi.mock("@/lib/ai/client", async (original) => ({
   ...(await original<typeof import("@/lib/ai/client")>()),
   askForJson: (...args: unknown[]) => askForJson(...args),
 }));
 
-const { discardDraft, draftItem, sortPhotos } = await import("@/app/(app)/batches/actions");
+const { discardDraft, draftItem, postDraft, quickEdit, sortPhotos } = await import("@/app/(app)/batches/actions");
 
 const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
 
@@ -25,6 +27,7 @@ describe.runIf(process.env.TEST_DATABASE_URL)("drafting listings from a photo ba
   beforeEach(async () => {
     await db.delete(organizations);
     askForJson.mockReset();
+    syncItem.mockClear();
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: URL | string) => {
@@ -125,11 +128,52 @@ describe.runIf(process.env.TEST_DATABASE_URL)("drafting listings from a photo ba
 
     expect(await draftItem(batchId, 0)).toEqual({ error: "Those photos have already been drafted." });
 
+    expect(await quickEdit(item!.id, { title: "  ", price: "45", condition: "USED_GOOD" })).toEqual({
+      error: "Give the item a title",
+    });
+    expect(await quickEdit(item!.id, { title: "Levi's trucker jacket", price: "39.50", condition: "USED_GOOD" })).toEqual({});
+    expect(await db.query.items.findFirst({ where: eq(items.id, item!.id) })).toMatchObject({
+      title: "Levi's trucker jacket",
+      priceCents: 3950,
+      condition: "USED_GOOD",
+    });
+
     await discardDraft(item!.id);
     expect(await db.query.items.findFirst({ where: eq(items.id, item!.id) })).toBeUndefined();
     expect(await db.select().from(itemImages)).toHaveLength(0);
     const back = await db.select().from(photos).where(eq(photos.batchId, batchId)).orderBy(photos.position);
     expect(back.map((p) => [p.groupKey, p.itemId])).toEqual([[0, null], [0, null], [1, null]]);
+  });
+
+  it("posts a reviewed draft, and refuses one that isn't ready", async () => {
+    await db.update(photos).set({ groupKey: 0 }).where(eq(photos.batchId, batchId));
+    askForJson
+      .mockResolvedValueOnce({
+        title: "Mug",
+        description: "A mug.",
+        condition: "USED_GOOD",
+        brand: null,
+        itemSpecifics: [],
+        categoryQuery: "mug",
+        suggestedPrice: 12,
+        priceNote: "",
+        whenMade: "2020_2026",
+      })
+      .mockResolvedValueOnce({ aspects: [{ name: "Department", values: ["Women"] }] });
+    const { itemId } = await draftItem(batchId, 0);
+
+    await db.update(channelListings).set({ overrides: {} }).where(eq(channelListings.itemId, itemId!));
+    expect(await postDraft(itemId!)).toEqual({ error: "eBay: Choose an eBay category for this item." });
+    expect(syncItem).not.toHaveBeenCalled();
+
+    await db.update(channelListings).set({ overrides: { categoryId: "57988" } }).where(eq(channelListings.itemId, itemId!));
+    expect(await postDraft(itemId!)).toEqual({ itemId, failed: undefined });
+    expect(syncItem).toHaveBeenCalledWith(user.organizationId, itemId);
+    expect((await db.query.items.findFirst({ where: eq(items.id, itemId!) }))!.status).toBe("active");
+    expect(await postDraft(itemId!)).toEqual({ error: "Already posted." });
+    expect(await quickEdit(itemId!, { title: "x", price: "1", condition: "NEW" })).toEqual({
+      error: "That item has already been posted. Edit it from its own page.",
+    });
   });
 
   it("reports an AI failure without creating an item", async () => {

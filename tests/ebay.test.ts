@@ -1,0 +1,113 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ebayAdapter } from "@/lib/marketplaces/ebay/adapter";
+import { toInventoryItem, toOffer, validateForEbay } from "@/lib/marketplaces/ebay/mapping";
+import { buildAuthorizeUrl } from "@/lib/marketplaces/ebay/oauth";
+import { makeConnection, makeItem, makeListing } from "./fixtures";
+
+describe("eBay mapping", () => {
+  it("builds the inventory item with ordered photos, brand and aspects", () => {
+    const body = toInventoryItem(makeItem({ title: "x".repeat(100) }), makeListing());
+    expect(body.product.title).toHaveLength(80);
+    expect(body.product.imageUrls).toEqual(["https://img.example/1.jpg", "https://img.example/2.jpg"]);
+    expect(body.product.aspects).toEqual({ Size: ["M"], Brand: ["Levi's"] });
+    expect(body.availability.shipToLocationAvailability.quantity).toBe(1);
+  });
+
+  it("uses the per-store price override in the offer", () => {
+    const offer = toOffer(makeItem(), makeListing({ overrides: { categoryId: "1", priceCents: 5000 } }), makeConnection().settings);
+    expect(offer.pricingSummary.price).toEqual({ value: "50.00", currency: "USD" });
+    expect(offer.categoryId).toBe("1");
+    expect(offer.listingPolicies.fulfillmentPolicyId).toBe("f1");
+  });
+
+  it("explains what's missing before calling eBay", () => {
+    const problems = validateForEbay(makeItem({ images: [] }), makeListing({ overrides: {} }), {});
+    expect(problems).toEqual([
+      "Choose an eBay category for this item.",
+      "Add at least one photo.",
+      "Set your ship-from location on the Stores page.",
+      "Pick your eBay shipping, payment and return policies on the Stores page.",
+    ]);
+  });
+});
+
+describe("eBay OAuth", () => {
+  it("sends sellers to the sandbox consent page with the RuName and state", () => {
+    const url = new URL(buildAuthorizeUrl("state123"));
+    expect(url.origin).toBe("https://auth.sandbox.ebay.com");
+    expect(url.searchParams.get("redirect_uri")).toBe("ru-name");
+    expect(url.searchParams.get("state")).toBe("state123");
+    expect(url.searchParams.get("scope")).toContain("sell.inventory");
+  });
+});
+
+describe("eBay adapter", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function stubFetch(responses: Record<string, { status: number; body?: unknown }>) {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: URL, init: RequestInit) => {
+        const key = `${init.method} ${url.pathname}${url.search}`;
+        calls.push(key);
+        const match = responses[key];
+        if (!match) throw new Error(`Unexpected request: ${key}`);
+        return new Response(match.body === undefined ? null : JSON.stringify(match.body), { status: match.status });
+      }),
+    );
+    return calls;
+  }
+
+  it("creates the inventory item, creates an offer, then publishes it", async () => {
+    const calls = stubFetch({
+      "PUT /sell/inventory/v1/inventory_item/JACKET-001": { status: 204 },
+      "POST /sell/inventory/v1/offer": { status: 201, body: { offerId: "O1" } },
+      "POST /sell/inventory/v1/offer/O1/publish": { status: 200, body: { listingId: "L1" } },
+    });
+    const result = await ebayAdapter.upsertListing(makeItem(), makeListing(), makeConnection());
+    expect(result).toEqual({ remoteListingId: "L1", remoteOfferId: "O1" });
+    expect(calls).toHaveLength(3);
+  });
+
+  it("updates a live listing without republishing", async () => {
+    const calls = stubFetch({
+      "PUT /sell/inventory/v1/inventory_item/JACKET-001": { status: 204 },
+      "PUT /sell/inventory/v1/offer/O1": { status: 204 },
+    });
+    const listing = makeListing({ status: "listed", remoteOfferId: "O1", remoteListingId: "L1" });
+    const result = await ebayAdapter.upsertListing(makeItem(), listing, makeConnection());
+    expect(result).toEqual({ remoteListingId: "L1", remoteOfferId: "O1" });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("reuses an existing offer when eBay says one already exists", async () => {
+    stubFetch({
+      "PUT /sell/inventory/v1/inventory_item/JACKET-001": { status: 204 },
+      "POST /sell/inventory/v1/offer": { status: 400, body: { errors: [{ errorId: 25002, message: "exists" }] } },
+      "GET /sell/inventory/v1/offer?sku=JACKET-001&marketplace_id=EBAY_US": { status: 200, body: { offers: [{ offerId: "O9" }] } },
+      "PUT /sell/inventory/v1/offer/O9": { status: 204 },
+      "POST /sell/inventory/v1/offer/O9/publish": { status: 200, body: { listingId: "L9" } },
+    });
+    const result = await ebayAdapter.upsertListing(makeItem(), makeListing(), makeConnection());
+    expect(result).toEqual({ remoteListingId: "L9", remoteOfferId: "O9" });
+  });
+
+  it("withdraws the offer to end a listing", async () => {
+    const calls = stubFetch({ "POST /sell/inventory/v1/offer/O1/withdraw": { status: 200, body: { listingId: "L1" } } });
+    await ebayAdapter.endListing(makeListing({ remoteOfferId: "O1" }), makeConnection());
+    expect(calls).toEqual(["POST /sell/inventory/v1/offer/O1/withdraw"]);
+  });
+
+  it("surfaces eBay's error message", async () => {
+    stubFetch({
+      "PUT /sell/inventory/v1/inventory_item/JACKET-001": {
+        status: 400,
+        body: { errors: [{ errorId: 25709, longMessage: "Invalid value for condition." }] },
+      },
+    });
+    await expect(ebayAdapter.upsertListing(makeItem(), makeListing(), makeConnection())).rejects.toThrow(
+      "Invalid value for condition.",
+    );
+  });
+});

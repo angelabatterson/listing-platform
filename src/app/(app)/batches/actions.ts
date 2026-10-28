@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { batches, channelListings, connections, itemImages, items, photos } from "@/db/schema";
+import { autoCategorizeForEbay } from "@/lib/ai/assist";
 import { AiError, askForJson, jpegBlock } from "@/lib/ai/client";
 import { batchSku, DRAFT_SYSTEM, draftSchema, draftToItem } from "@/lib/ai/draft";
 import { normalizeGroups, SORT_SYSTEM, sortSchema } from "@/lib/ai/sort";
@@ -187,6 +188,30 @@ export async function draftItem(batchId: string, groupKey: number): Promise<Batc
     return item.id;
   });
   if (!itemId) return { error: "Those photos have already been drafted." };
+
+  // Best effort: a failure here leaves the category for the seller to pick.
+  const ebay = orgConnections.find((c) => c.marketplace === "ebay" && isConnectionReady(c));
+  if (ebay) {
+    try {
+      const picked = await autoCategorizeForEbay({
+        connection: ebay,
+        query: fields.draftNotes.categoryQuery ?? "",
+        item: fields,
+        photos: group.slice(0, PHOTOS_FOR_DRAFT).map((p) => p.data),
+      });
+      if (picked) {
+        await db.transaction(async (tx) => {
+          await tx.update(items).set({ attributes: picked.attributes }).where(eq(items.id, itemId));
+          await tx
+            .update(channelListings)
+            .set({ overrides: { categoryId: picked.categoryId } })
+            .where(and(eq(channelListings.itemId, itemId), eq(channelListings.connectionId, ebay.id)));
+        });
+      }
+    } catch (err) {
+      console.error("Couldn't pick an eBay category", err);
+    }
+  }
 
   revalidatePath(`/batches/${batchId}`);
   revalidatePath("/items");

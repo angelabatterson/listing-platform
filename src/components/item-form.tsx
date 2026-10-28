@@ -1,5 +1,7 @@
 "use client";
 
+import { useRef } from "react";
+import { StoreAssist } from "./store-assist";
 import { useFormAction } from "./use-form-action";
 import type { ItemFormState } from "@/app/(app)/items/actions";
 import { EBAY_CONDITIONS } from "@/lib/marketplaces/ebay/mapping";
@@ -37,11 +39,13 @@ export function ItemForm(props: {
   values: ItemFormValues;
   stores: StoreOption[];
   submitLabel: string;
+  itemId?: string;
 }) {
   const { state, onSubmit, pending } = useFormAction(props.action);
+  const formRef = useRef<HTMLFormElement>(null);
   const v = props.values;
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-6">
+    <form ref={formRef} onSubmit={onSubmit} className="flex flex-col gap-6">
       <section className="card grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label className="label" htmlFor="title">Title</label>
@@ -135,9 +139,6 @@ export function ItemForm(props: {
                     {s.marketplace === "ebay" ? "eBay" : "Etsy"} category ID
                   </label>
                   <input id={`category_${s.connectionId}`} name={`category_${s.connectionId}`} className="input" defaultValue={s.categoryId} />
-                  {v.categoryHint && !s.categoryId && (
-                    <p className="mt-1 text-xs text-zinc-500">AI suggestion: search the category list for &quot;{v.categoryHint}&quot;.</p>
-                  )}
                 </div>
                 {s.marketplace === "etsy" && (
                   <div>
@@ -165,6 +166,14 @@ export function ItemForm(props: {
                   />
                 </div>
               </div>
+              <StoreAssist
+                formRef={formRef}
+                itemId={props.itemId ?? null}
+                connectionId={s.connectionId}
+                marketplace={s.marketplace}
+                ready={s.ready}
+                categoryHint={v.categoryHint}
+              />
             </div>
           ))}
         </div>

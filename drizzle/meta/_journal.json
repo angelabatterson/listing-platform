@@ -15,6 +15,13 @@
       "when": 1793218380282,
       "tag": "0001_etsy_and_sales",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793220133743,
+      "tag": "0002_ai_drafts",
+      "breakpoints": true
     }
   ]
 }

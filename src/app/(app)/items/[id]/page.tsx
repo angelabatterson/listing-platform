@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { connections, items } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { formatPrice } from "@/lib/marketplaces/ebay/mapping";
+import { formatSpecifics } from "@/lib/specifics";
 import { storeLabel, storeOptions } from "@/lib/stores";
 import { archiveItem, resyncItem, saveItem } from "../actions";
 
@@ -22,6 +23,7 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
     where: eq(connections.organizationId, user.organizationId),
   });
   const listingProblems = item.listings.filter((l) => l.status === "error");
+  const images = [...item.images].sort((a, b) => a.position - b.position);
 
   return (
     <div className="flex flex-col gap-6">
@@ -51,6 +53,23 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
         );
       })}
 
+      {item.status === "draft" && item.batchId && (
+        <p className="rounded-md bg-amber-50 px-4 py-2 text-sm text-amber-800">
+          The AI wrote this draft. Check the details and price, add the store categories, then set Status to Active to
+          list it.
+          {item.draftNotes.priceNote && <> Price reasoning: {item.draftNotes.priceNote}</>}
+        </p>
+      )}
+
+      {images.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto">
+          {images.map((img) => (
+            // eslint-disable-next-line @next/next/no-img-element -- photos come from many hosts
+            <img key={img.id} src={img.url} alt="" className="h-24 w-24 flex-none rounded object-cover" />
+          ))}
+        </div>
+      )}
+
       <ItemForm
         action={saveItem.bind(null, item.id)}
         submitLabel="Save and sync"
@@ -64,7 +83,9 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
           condition: item.condition,
           brand: item.brand ?? "",
           status: item.status === "active" ? "active" : "draft",
-          imageUrls: [...item.images].sort((a, b) => a.position - b.position).map((i) => i.url).join("\n"),
+          imageUrls: images.map((i) => i.url).join("\n"),
+          specifics: formatSpecifics(item.attributes),
+          categoryHint: item.draftNotes.categoryQuery,
           skuLocked: item.listings.some((l) => l.remoteOfferId || l.remoteListingId),
         }}
       />

@@ -11,6 +11,7 @@ Only marketplaces with official public APIs are supported: eBay and Etsy today.
 - **Inventory:** a master record per item (title, SKU, price, quantity, condition, photos), with a per-store "list it here" checkbox and optional per-store price.
 - **Sync:** saving an item creates, updates, or ends its listing on every ticked store. Problems are shown in plain language on the item and in the Activity log.
 - **Sales:** when an item sells on one store, its quantity drops and the other stores are updated, or the item is ended everywhere if none are left. Sales arrive from Etsy's `order.paid` webhook within seconds, and a check every 5 minutes (`/api/cron/check-sales`) picks up eBay orders and anything a webhook missed. Each order line is counted once, and a sale of more than was in stock is flagged as an oversell.
+- **Photo batches (AI listing assistant):** upload a pile of photos at once (resized in the browser first). Claude sorts them into items, then writes each listing: title, description, condition, brand, item specifics, a suggested price, and Etsy's "when made". Each becomes a draft item with an automatic SKU (`B12-3` is item 3 of batch 12) for the seller to check before listing. Photos are stored in Postgres and served to eBay and Etsy through signed links at `/api/photos/...`.
 - **eBay compliance:** the Marketplace Account Deletion endpoint eBay requires before it issues production keys.
 
 ## Stack
@@ -43,6 +44,10 @@ Next.js 16 (App Router, TypeScript), Postgres with Drizzle ORM, Tailwind CSS, Vi
 
 Etsy starts new apps with limited access. Serving many sellers needs Etsy's Commercial Access, which Etsy reviews by hand.
 
+## AI listing assistant
+
+Set `ANTHROPIC_API_KEY` (from console.anthropic.com). It uses Claude Opus 5.5 with structured output, so answers always match the shape the app expects. If the model declines a request, the API retries on Anthropic's recommended fallback model (`fallbacks: "default"`); if every model declines, the item is left for the seller to fill in. Without a key, batches still upload and can be sorted by hand.
+
 ## Scheduled sales check
 
 `vercel.json` runs `/api/cron/check-sales` every 5 minutes on Vercel (this needs a paid Vercel plan; the free plan runs crons once a day). Set `CRON_SECRET`; Vercel sends it automatically. Anywhere else, call the endpoint on a schedule with `Authorization: Bearer $CRON_SECRET`.
@@ -59,4 +64,5 @@ The database tests run when `TEST_DATABASE_URL` points at an empty, migrated Pos
 
 ## Roadmap
 
-- Step 4: real-account testing, photo uploads, category search for eBay and Etsy, verifying signatures on eBay deletion notices, billing, hosting, Etsy Commercial Access.
+- AI listing assistant, next parts: eBay and Etsy category search with required item specifics, price comparisons from eBay's Browse API, a review board with batch posting, and CSV export.
+- Step 4: real-account testing, verifying signatures on eBay deletion notices, billing, hosting, Etsy Commercial Access.

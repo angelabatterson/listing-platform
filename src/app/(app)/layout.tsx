@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 
 const nav = [
   { href: "/items", label: "Inventory" },
+  { href: "/batches", label: "Photo batches" },
   { href: "/stores", label: "Stores" },
   { href: "/activity", label: "Activity" },
 ];

@@ -6,7 +6,8 @@ set -euo pipefail
 npm run build
 
 out=.next/standalone
-cp -r public "$out/"
+# Public files (favicon etc.), if the project has any.
+if [ -d public ]; then cp -r public "$out/"; fi
 mkdir -p "$out/.next"
 cp -r .next/static "$out/.next/"
 # Database changes, applied when the app starts (MIGRATE_ON_START below).

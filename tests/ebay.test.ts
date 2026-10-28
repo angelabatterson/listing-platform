@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ebayAdapter } from "@/lib/marketplaces/ebay/adapter";
 import { toInventoryItem, toOffer, validateForEbay } from "@/lib/marketplaces/ebay/mapping";
 import { buildAuthorizeUrl } from "@/lib/marketplaces/ebay/oauth";
+import { fetchEbaySales } from "@/lib/marketplaces/ebay/orders";
 import { makeConnection, makeItem, makeListing } from "./fixtures";
 
 describe("eBay mapping", () => {
@@ -109,5 +110,38 @@ describe("eBay adapter", () => {
     await expect(ebayAdapter.upsertListing(makeItem(), makeListing(), makeConnection())).rejects.toThrow(
       "Invalid value for condition.",
     );
+  });
+});
+
+describe("eBay orders", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("pages through orders and skips canceled ones", async () => {
+    const order = (id: string, cancelState = "NONE_REQUESTED") => ({
+      orderId: id,
+      creationDate: "2026-10-28T10:00:00.000Z",
+      cancelStatus: { cancelState },
+      lineItems: [{ lineItemId: `${id}-L`, sku: "JACKET-001", legacyItemId: "E1", quantity: 1 }],
+    });
+    const offsets: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: URL) => {
+        const offset = input.searchParams.get("offset")!;
+        offsets.push(offset);
+        expect(input.searchParams.get("filter")).toBe("creationdate:[2026-10-28T09:00:00.000Z..]");
+        const body =
+          offset === "0"
+            ? { total: 201, orders: [order("A"), order("B", "CANCELED")] }
+            : { total: 201, orders: [order("C")] };
+        return new Response(JSON.stringify(body), { status: 200 });
+      }),
+    );
+    const lines = await fetchEbaySales(makeConnection(), new Date("2026-10-28T09:00:00.000Z"));
+    expect(offsets).toEqual(["0", "200"]);
+    expect(lines.map((l) => [l.orderId, l.lineId, l.remoteListingId])).toEqual([
+      ["A", "A-L", "E1"],
+      ["C", "C-L", "E1"],
+    ]);
   });
 });

@@ -101,6 +101,7 @@ export async function saveItem(
       const price = String(formData.get(`price_${c.id}`) ?? "").trim();
       const overrides = {
         categoryId: String(formData.get(`category_${c.id}`) ?? "").trim() || undefined,
+        whenMade: String(formData.get(`whenMade_${c.id}`) ?? "") || undefined,
         priceCents: price ? dollarsToCents(price) : undefined,
       };
       const enabled = formData.get(`list_${c.id}`) === "on";

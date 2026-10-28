@@ -29,6 +29,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-8">{children}</main>
+      {/* Etsy requires this notice in apps that use its API. */}
+      <footer className="mx-auto w-full max-w-5xl px-6 py-6 text-xs text-zinc-500">
+        The term &quot;Etsy&quot; is a trademark of Etsy, Inc. This application uses the Etsy API but is not
+        endorsed or certified by Etsy, Inc.
+      </footer>
     </div>
   );
 }

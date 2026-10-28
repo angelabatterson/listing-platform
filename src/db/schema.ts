@@ -79,6 +79,20 @@ export type EbayConnectionSettings = {
   country?: string;
 };
 
+export type EtsyWhoMade = "i_did" | "someone_else" | "collective";
+
+// Etsy ids are kept as strings, like eBay's, and converted when sent.
+export type EtsyConnectionSettings = {
+  shopId?: string;
+  shippingProfileId?: string;
+  returnPolicyId?: string;
+  readinessStateId?: string;
+  whoMade?: EtsyWhoMade;
+};
+
+// Each marketplace reads only its own keys from a connection's settings.
+export type ConnectionSettings = EbayConnectionSettings & EtsyConnectionSettings;
+
 // A marketplace store connected through OAuth. Tokens are encrypted (see lib/crypto).
 export const connections = pgTable(
   "connections",
@@ -95,8 +109,10 @@ export const connections = pgTable(
     accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }).notNull(),
     refreshTokenEnc: text("refresh_token_enc"),
     refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
-    settings: jsonb("settings").$type<EbayConnectionSettings>().default({}).notNull(),
+    settings: jsonb("settings").$type<ConnectionSettings>().default({}).notNull(),
     status: connectionStatusEnum("status").default("active").notNull(),
+    // Orders created after this time haven't been checked for sales yet.
+    ordersCheckedAt: timestamp("orders_checked_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [uniqueIndex("connections_org_marketplace").on(t.organizationId, t.marketplace)],
@@ -140,6 +156,8 @@ export type ListingOverrides = {
   title?: string;
   priceCents?: number;
   categoryId?: string;
+  // Etsy only: when the item was made, e.g. "1990s" or "2020_2026".
+  whenMade?: string;
 };
 
 // One row per (item, store). `enabled` is the "list it here" checkbox.
@@ -180,6 +198,29 @@ export const syncEvents = pgTable("sync_events", {
   message: text("message"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// One sold line from a marketplace order. The unique index makes sale handling
+// idempotent, so the same order seen by a webhook and by polling counts once.
+export const sales = pgTable(
+  "sales",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => connections.id, { onDelete: "cascade" }),
+    itemId: uuid("item_id").references(() => items.id, { onDelete: "set null" }),
+    externalOrderId: text("external_order_id").notNull(),
+    externalLineId: text("external_line_id").notNull(),
+    sku: text("sku"),
+    quantity: integer("quantity").notNull(),
+    soldAt: timestamp("sold_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("sales_connection_line").on(t.connectionId, t.externalLineId)],
+);
 
 export const itemsRelations = relations(items, ({ many }) => ({
   images: many(itemImages),

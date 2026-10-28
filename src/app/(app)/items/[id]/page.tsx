@@ -72,6 +72,7 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
 
       <ItemForm
         action={saveItem.bind(null, item.id)}
+        itemId={item.id}
         submitLabel="Save and sync"
         stores={storeOptions(conns, item.listings)}
         values={{

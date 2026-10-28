@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/db";
 import { batches, channelListings, connections, itemImages, items, organizations, photos } from "@/db/schema";
 import { encrypt } from "@/lib/crypto";
@@ -25,6 +25,34 @@ describe.runIf(process.env.TEST_DATABASE_URL)("drafting listings from a photo ba
   beforeEach(async () => {
     await db.delete(organizations);
     askForJson.mockReset();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: URL | string) => {
+        const url = new URL(String(input));
+        const body = url.pathname.endsWith("get_default_category_tree_id")
+          ? { categoryTreeId: "0" }
+          : url.pathname.endsWith("get_category_suggestions")
+            ? {
+                categorySuggestions: [
+                  {
+                    category: { categoryId: "57988", categoryName: "Coats, Jackets & Vests" },
+                    categoryTreeNodeAncestors: [{ categoryName: "Clothing", categoryTreeNodeLevel: 1 }],
+                  },
+                ],
+              }
+            : {
+                aspects: [
+                  { localizedAspectName: "Brand", aspectConstraint: { aspectRequired: true } },
+                  {
+                    localizedAspectName: "Department",
+                    aspectConstraint: { aspectRequired: true, aspectMode: "SELECTION_ONLY" },
+                    aspectValues: [{ localizedValue: "Men" }, { localizedValue: "Women" }],
+                  },
+                ],
+              };
+        return new Response(JSON.stringify(body), { status: 200 });
+      }),
+    );
     const [org] = await db.insert(organizations).values({ name: "Test" }).returning();
     user.organizationId = org.id;
     const [ebay] = await db
@@ -44,6 +72,10 @@ describe.runIf(process.env.TEST_DATABASE_URL)("drafting listings from a photo ba
     await db.insert(photos).values(
       [0, 1, 2].map((position) => ({ organizationId: org.id, batchId, position, data: jpeg, thumb: jpeg })),
     );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   afterAll(async () => {
@@ -67,6 +99,7 @@ describe.runIf(process.env.TEST_DATABASE_URL)("drafting listings from a photo ba
       priceNote: "Typical for this jacket.",
       whenMade: "2010_2019",
     });
+    askForJson.mockResolvedValueOnce({ aspects: [{ name: "Department", values: ["women"] }] });
     const result = await draftItem(batchId, 0);
     expect(result.error).toBeUndefined();
 
@@ -74,11 +107,19 @@ describe.runIf(process.env.TEST_DATABASE_URL)("drafting listings from a photo ba
       where: eq(items.id, result.itemId!),
       with: { images: true, listings: true },
     });
-    expect(item).toMatchObject({ sku: "B7-1", status: "draft", priceCents: 4500, attributes: { Size: ["M"] } });
+    // eBay's top category was picked and its required specifics filled in.
+    expect(item).toMatchObject({
+      sku: "B7-1",
+      status: "draft",
+      priceCents: 4500,
+      attributes: { Size: ["M"], Brand: ["Levi's"], Department: ["Women"] },
+    });
     expect(item!.images.map((i) => i.url)).toEqual(
       sorted.slice(0, 2).map((p) => expect.stringContaining(`/api/photos/${p.id}-`)),
     );
-    expect(item!.listings).toMatchObject([{ connectionId: ebayId, enabled: true, status: "not_listed" }]);
+    expect(item!.listings).toMatchObject([
+      { connectionId: ebayId, enabled: true, status: "not_listed", overrides: { categoryId: "57988" } },
+    ]);
     // The AI saw both photos of the jacket.
     expect(askForJson.mock.calls[1][0].content.filter((b: { type: string }) => b.type === "image")).toHaveLength(2);
 

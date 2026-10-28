@@ -19,7 +19,7 @@ export class EbayApiError extends Error {
 export async function ebayFetch<T = unknown>(
   connection: Connection,
   path: string,
-  init: { method?: string; body?: unknown; host?: "api" | "apiz" } = {},
+  init: { method?: string; body?: unknown; host?: "api" | "apiz"; headers?: Record<string, string> } = {},
 ): Promise<T> {
   const token = await accessTokenFor(connection, refreshAccessToken);
   const res = await fetch(new URL(path, ebayHosts()[init.host ?? "api"]), {
@@ -29,6 +29,7 @@ export async function ebayFetch<T = unknown>(
       "Content-Type": "application/json",
       "Content-Language": "en-US",
       Accept: "application/json",
+      ...init.headers,
     },
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
   });

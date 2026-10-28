@@ -3,6 +3,7 @@
 import { and, asc, eq, inArray, isNull, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import { db } from "@/db";
 import { batches, channelListings, connections, itemImages, items, photos } from "@/db/schema";
 import { autoCategorizeForEbay } from "@/lib/ai/assist";
@@ -12,7 +13,10 @@ import { normalizeGroups, SORT_SYSTEM, sortSchema } from "@/lib/ai/sort";
 import { requireUser } from "@/lib/auth";
 import { photoUrl } from "@/lib/photos/links";
 import { MAX_PHOTOS_PER_ITEM } from "@/lib/photos/limits";
+import { EBAY_CONDITIONS } from "@/lib/marketplaces/ebay/mapping";
+import { postingProblems } from "@/lib/review";
 import { isConnectionReady } from "@/lib/stores";
+import { syncItem } from "@/lib/sync/run";
 
 export type BatchActionResult = { error?: string; itemId?: string };
 
@@ -233,4 +237,52 @@ export async function discardDraft(itemId: string) {
   });
   revalidatePath(`/batches/${item.batchId}`);
   revalidatePath("/items");
+}
+
+const quickEditSchema = z.object({
+  title: z.string().trim().min(1, "Give the item a title").max(140, "Titles can be at most 140 characters"),
+  price: z.string().refine((v) => Number(v) > 0, "Enter a price above zero"),
+  condition: z.enum(EBAY_CONDITIONS.map((c) => c.value) as [string, ...string[]]),
+});
+
+// Title, price and condition edits straight from the review board.
+export async function quickEdit(
+  itemId: string,
+  fields: { title: string; price: string; condition: string },
+): Promise<BatchActionResult> {
+  const user = await requireUser();
+  const parsed = quickEditSchema.safeParse(fields);
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const [updated] = await db
+    .update(items)
+    .set({
+      title: parsed.data.title,
+      priceCents: Math.round(Number(parsed.data.price) * 100),
+      condition: parsed.data.condition,
+    })
+    .where(and(eq(items.id, itemId), eq(items.organizationId, user.organizationId), eq(items.status, "draft")))
+    .returning({ batchId: items.batchId });
+  if (!updated) return { error: "That item has already been posted. Edit it from its own page." };
+  if (updated.batchId) revalidatePath(`/batches/${updated.batchId}`);
+  return {};
+}
+
+// Make one reviewed draft active and list it on its ticked stores.
+export async function postDraft(itemId: string): Promise<BatchActionResult & { failed?: string[] }> {
+  const user = await requireUser();
+  const item = await db.query.items.findFirst({
+    where: and(eq(items.id, itemId), eq(items.organizationId, user.organizationId)),
+    with: { images: true, listings: { with: { connection: true } } },
+  });
+  if (!item) return { error: "Item not found." };
+  if (item.status !== "draft") return { error: "Already posted." };
+  const problems = postingProblems(item);
+  if (problems.length) return { error: problems.join(" ") };
+
+  await db.update(items).set({ status: "active" }).where(eq(items.id, item.id));
+  const outcomes = await syncItem(user.organizationId, item.id);
+  if (item.batchId) revalidatePath(`/batches/${item.batchId}`);
+  revalidatePath("/items");
+  const failed = outcomes.filter((o) => !o.ok).map((o) => o.message ?? o.store);
+  return { itemId: item.id, failed: failed.length ? failed : undefined };
 }

@@ -1,0 +1,35 @@
+name: cPanel package
+
+# Every change to main produces relistic-cpanel.zip, attached to a GitHub release
+# (Releases > Latest), ready to upload to cPanel. See README "Hosting on cPanel".
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: bash scripts/package-cpanel.sh
+        env:
+          # The build never connects; the real address is set on the server.
+          DATABASE_URL: postgres://unused@localhost:1/unused
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "cpanel-${{ github.run_number }}" relistic-cpanel.zip \
+            --target "${{ github.sha }}" \
+            --title "cPanel package ${{ github.run_number }}" \
+            --notes "Built from ${{ github.sha }}. Download relistic-cpanel.zip below and upload it to your cPanel Node.js app folder." \
+            --latest

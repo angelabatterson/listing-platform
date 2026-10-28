@@ -1,6 +1,29 @@
-import { describe, expect, it } from "vitest";
-import { decrypt, encrypt, hashPassword, verifyPassword } from "@/lib/crypto";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { decrypt, encrypt, encryptionKey, hashPassword, verifyPassword } from "@/lib/crypto";
 import { challengeResponse } from "@/lib/marketplaces/ebay/account-deletion";
+
+describe("encryption key", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("uses a base64 key as is", () => {
+    const raw = Buffer.alloc(32, 9);
+    vi.stubEnv("ENCRYPTION_KEY", raw.toString("base64"));
+    expect(encryptionKey()).toEqual(raw);
+  });
+
+  it("turns a long password into a 32-byte key", () => {
+    vi.stubEnv("ENCRYPTION_KEY", "correct horse battery staple and more words");
+    expect(encryptionKey()).toHaveLength(32);
+    expect(decrypt(encrypt("x"))).toBe("x");
+  });
+
+  it("refuses a short password", () => {
+    vi.stubEnv("ENCRYPTION_KEY", "too-short");
+    expect(() => encryptionKey()).toThrow("at least 32 characters");
+  });
+});
 
 describe("token encryption", () => {
   it("round-trips and uses a fresh IV each time", () => {

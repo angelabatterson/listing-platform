@@ -14,12 +14,14 @@ const scryptAsync = promisify(scrypt) as (
   keylen: number,
 ) => Promise<Buffer>;
 
-function encryptionKey(): Buffer {
+// ENCRYPTION_KEY is either 32 random bytes in base64 (from `openssl rand -base64 32`)
+// or any long random password, which is hashed down to a 32-byte key.
+export function encryptionKey(): Buffer {
   const raw = process.env.ENCRYPTION_KEY;
   if (!raw) throw new Error("ENCRYPTION_KEY is not set");
-  const key = Buffer.from(raw, "base64");
-  if (key.length !== 32) throw new Error("ENCRYPTION_KEY must be 32 bytes, base64-encoded");
-  return key;
+  if (/^[A-Za-z0-9+/]{43}=$/.test(raw)) return Buffer.from(raw, "base64");
+  if (raw.length < 32) throw new Error("ENCRYPTION_KEY must be at least 32 characters long");
+  return createHash("sha256").update(raw, "utf8").digest();
 }
 
 // AES-256-GCM. Output is "iv.tag.ciphertext", each part base64url.

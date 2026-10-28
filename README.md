@@ -24,9 +24,20 @@ Next.js 16 (App Router, TypeScript), Postgres with Drizzle ORM, Tailwind CSS, Vi
 
 1. Install Node 22+ and Postgres.
 2. `npm install`
-3. Copy `.env.example` to `.env` and fill it in. `ENCRYPTION_KEY` comes from `openssl rand -base64 32`.
+3. Copy `.env.example` to `.env` and fill it in. `ENCRYPTION_KEY` comes from `openssl rand -base64 32`, or use any random password of 32+ characters.
 4. `npm run db:migrate`
 5. `npm run dev`, then open http://localhost:3000
+
+## Hosting on cPanel
+
+Every change to `main` builds `relistic-cpanel.zip` (GitHub **Releases**, latest). It's the standalone Next.js server with everything it needs, so nothing is installed on the server.
+
+1. In cPanel, open **Setup Node.js App** and create an app: Node.js 20 or newer, mode Production, your domain, and startup file `app.js`.
+2. Upload the zip into the app's folder with **File Manager** and extract it there.
+3. Add the environment variables from `.env.example` in the app's settings, then **Restart**. Database changes are applied automatically when the app starts.
+4. Schedule the sales check in **Cron Jobs** every 5 minutes: `curl -fsS -H "Authorization: Bearer YOUR_CRON_SECRET" https://YOUR_DOMAIN/api/cron/check-sales`.
+
+The database can be cPanel's **PostgreSQL Databases** or any hosted Postgres (Neon's free plan works).
 
 ## Setting up eBay (sandbox)
 

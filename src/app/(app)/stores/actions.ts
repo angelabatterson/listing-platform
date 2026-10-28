@@ -54,3 +54,32 @@ export async function disconnectStore(connectionId: string) {
     .where(and(eq(connections.id, connectionId), eq(connections.organizationId, user.organizationId)));
   revalidatePath("/stores");
 }
+
+const etsySettingsSchema = z.object({
+  shippingProfileId: z.string().regex(/^\d+$/, "Choose a shipping profile"),
+  returnPolicyId: z.string().regex(/^\d+$/, "Choose a return policy"),
+  readinessStateId: z.string().regex(/^\d+$/, "Choose a processing profile"),
+  whoMade: z.enum(["someone_else", "i_did", "collective"]),
+});
+
+export async function saveEtsySettings(
+  connectionId: string,
+  _prev: StoreSettingsState,
+  formData: FormData,
+): Promise<StoreSettingsState> {
+  const user = await requireUser();
+  const parsed = etsySettingsSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  const connection = await db.query.connections.findFirst({
+    where: and(eq(connections.id, connectionId), eq(connections.organizationId, user.organizationId)),
+  });
+  if (!connection) return { error: "Store not found" };
+
+  await db
+    .update(connections)
+    .set({ settings: { ...connection.settings, ...parsed.data } })
+    .where(eq(connections.id, connection.id));
+  revalidatePath("/stores");
+  return { saved: true };
+}

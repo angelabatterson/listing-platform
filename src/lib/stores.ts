@@ -8,7 +8,8 @@ export function isConnectionReady(c: Connection): boolean {
     const s = c.settings;
     return Boolean(s.merchantLocationKey && s.fulfillmentPolicyId && s.paymentPolicyId && s.returnPolicyId);
   }
-  return true;
+  const s = c.settings;
+  return Boolean(s.shopId && s.shippingProfileId && s.returnPolicyId && s.readinessStateId);
 }
 
 export function storeLabel(c: Connection): string {
@@ -26,6 +27,7 @@ export function storeOptions(conns: Connection[], listings: ChannelListing[] = [
       ready: isConnectionReady(c),
       enabled: l?.enabled ?? false,
       categoryId: l?.overrides.categoryId ?? "",
+      whenMade: l?.overrides.whenMade ?? "",
       price: l?.overrides.priceCents ? (l.overrides.priceCents / 100).toFixed(2) : "",
     };
   });

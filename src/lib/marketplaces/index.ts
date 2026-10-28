@@ -1,9 +1,11 @@
 import type { Connection } from "@/db/schema";
 import { ebayAdapter } from "./ebay/adapter";
+import { etsyAdapter } from "./etsy/adapter";
 import type { MarketplaceAdapter } from "./types";
 
 const adapters: Partial<Record<Connection["marketplace"], MarketplaceAdapter>> = {
   ebay: ebayAdapter,
+  etsy: etsyAdapter,
 };
 
 export function adapterFor(marketplace: Connection["marketplace"]): MarketplaceAdapter {
@@ -12,7 +14,4 @@ export function adapterFor(marketplace: Connection["marketplace"]): MarketplaceA
   return adapter;
 }
 
-export const MARKETPLACE_LABELS: Record<Connection["marketplace"], string> = {
-  ebay: "eBay",
-  etsy: "Etsy",
-};
+export { MARKETPLACE_LABELS } from "./labels";

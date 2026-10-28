@@ -3,6 +3,7 @@
 import { useFormAction } from "./use-form-action";
 import type { ItemFormState } from "@/app/(app)/items/actions";
 import { EBAY_CONDITIONS } from "@/lib/marketplaces/ebay/mapping";
+import { ETSY_WHEN_MADE } from "@/lib/marketplaces/etsy/config";
 
 export type ItemFormValues = {
   title: string;
@@ -24,6 +25,7 @@ export type StoreOption = {
   ready: boolean;
   enabled: boolean;
   categoryId: string;
+  whenMade: string;
   price: string;
 };
 
@@ -109,10 +111,22 @@ export function ItemForm(props: {
                 <p className="mt-1 text-xs text-amber-700">Finish this store&apos;s setup on the Stores page before it can list.</p>
               )}
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                {s.marketplace === "ebay" && (
+                <div>
+                  <label className="label" htmlFor={`category_${s.connectionId}`}>
+                    {s.marketplace === "ebay" ? "eBay" : "Etsy"} category ID
+                  </label>
+                  <input id={`category_${s.connectionId}`} name={`category_${s.connectionId}`} className="input" defaultValue={s.categoryId} />
+                </div>
+                {s.marketplace === "etsy" && (
                   <div>
-                    <label className="label" htmlFor={`category_${s.connectionId}`}>eBay category ID</label>
-                    <input id={`category_${s.connectionId}`} name={`category_${s.connectionId}`} className="input" defaultValue={s.categoryId} />
+                    <label className="label" htmlFor={`whenMade_${s.connectionId}`}>When was it made?</label>
+                    <select id={`whenMade_${s.connectionId}`} name={`whenMade_${s.connectionId}`} className="input" defaultValue={s.whenMade}>
+                      <option value="">Choose…</option>
+                      {ETSY_WHEN_MADE.map((w) => (
+                        <option key={w.value} value={w.value}>{w.label}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-zinc-500">Etsy only allows resold items that are vintage (20+ years old) or craft supplies.</p>
                   </div>
                 )}
                 <div>

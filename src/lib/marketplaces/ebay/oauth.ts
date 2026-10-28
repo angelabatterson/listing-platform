@@ -1,11 +1,5 @@
+import type { OAuthTokens } from "../tokens";
 import { EBAY_SCOPES, ebayCredentials, ebayHosts } from "./config";
-
-export type EbayTokens = {
-  accessToken: string;
-  accessTokenExpiresAt: Date;
-  refreshToken?: string;
-  refreshTokenExpiresAt?: Date;
-};
 
 export function buildAuthorizeUrl(state: string): string {
   const { clientId, ruName } = ebayCredentials();
@@ -18,7 +12,7 @@ export function buildAuthorizeUrl(state: string): string {
   return url.toString();
 }
 
-async function tokenRequest(body: Record<string, string>): Promise<EbayTokens> {
+async function tokenRequest(body: Record<string, string>): Promise<OAuthTokens> {
   const { clientId, clientSecret } = ebayCredentials();
   const res = await fetch(new URL("/identity/v1/oauth2/token", ebayHosts().api), {
     method: "POST",
@@ -43,7 +37,7 @@ async function tokenRequest(body: Record<string, string>): Promise<EbayTokens> {
   };
 }
 
-export function exchangeCode(code: string): Promise<EbayTokens> {
+export function exchangeCode(code: string): Promise<OAuthTokens> {
   return tokenRequest({
     grant_type: "authorization_code",
     code,
@@ -51,7 +45,7 @@ export function exchangeCode(code: string): Promise<EbayTokens> {
   });
 }
 
-export function refreshAccessToken(refreshToken: string): Promise<EbayTokens> {
+export function refreshAccessToken(refreshToken: string): Promise<OAuthTokens> {
   return tokenRequest({
     grant_type: "refresh_token",
     refresh_token: refreshToken,

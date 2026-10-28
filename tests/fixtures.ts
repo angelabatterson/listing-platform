@@ -64,6 +64,7 @@ export function makeConnection(overrides: Partial<Connection> = {}): Connection 
       returnPolicyId: "r1",
     },
     status: "active",
+    ordersCheckedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

@@ -8,8 +8,13 @@ import { planChannelAction } from "./plan";
 export type SyncOutcome = { store: string; action: string; ok: boolean; message?: string };
 
 // Push one item's current state to every store it's connected to.
-// Runs inline for now; step 3 moves it onto a background queue.
-export async function syncItem(organizationId: string, itemId: string): Promise<SyncOutcome[]> {
+// `soldOn` is the store a sale came from: that marketplace has already lowered its
+// own quantity (or ended the listing), so it's left alone.
+export async function syncItem(
+  organizationId: string,
+  itemId: string,
+  options: { soldOn?: string } = {},
+): Promise<SyncOutcome[]> {
   const item = await db.query.items.findFirst({
     where: and(eq(items.id, itemId), eq(items.organizationId, organizationId)),
     with: { images: true, listings: { with: { connection: true } } },
@@ -21,6 +26,15 @@ export async function syncItem(organizationId: string, itemId: string): Promise<
     const store = MARKETPLACE_LABELS[connection.marketplace];
     const action = planChannelAction(item, listing);
     if (action === "none") continue;
+    if (connection.id === options.soldOn) {
+      if (action === "end") {
+        await db
+          .update(channelListings)
+          .set({ status: "ended", lastSyncedAt: new Date(), lastError: null })
+          .where(eq(channelListings.id, listing.id));
+      }
+      continue;
+    }
 
     let ok = true;
     let message: string | undefined;
@@ -30,7 +44,11 @@ export async function syncItem(organizationId: string, itemId: string): Promise<
       if (action === "publish") {
         const problems = adapter.validate(item, listing, connection);
         if (problems.length) throw new Error(problems.join(" "));
-        const result = await adapter.upsertListing(item, listing, connection);
+        const result = await adapter.upsertListing(item, listing, connection, {
+          onCreated: async (remoteListingId) => {
+            await db.update(channelListings).set({ remoteListingId }).where(eq(channelListings.id, listing.id));
+          },
+        });
         await db
           .update(channelListings)
           .set({
@@ -41,21 +59,22 @@ export async function syncItem(organizationId: string, itemId: string): Promise<
             lastError: null,
           })
           .where(eq(channelListings.id, listing.id));
-        message = `Listed (listing ${result.remoteListingId})`;
+        message = `${store}: listed (listing ${result.remoteListingId})`;
       } else {
         await adapter.endListing(listing, connection);
         await db
           .update(channelListings)
           .set({ status: "ended", lastSyncedAt: new Date(), lastError: null })
           .where(eq(channelListings.id, listing.id));
-        message = "Listing ended";
+        message = `${store}: listing ended`;
       }
     } catch (err) {
       ok = false;
-      message = err instanceof Error ? err.message : String(err);
+      const error = err instanceof Error ? err.message : String(err);
+      message = `${store}: ${error}`;
       await db
         .update(channelListings)
-        .set({ status: "error", lastError: message, lastSyncedAt: new Date() })
+        .set({ status: "error", lastError: error, lastSyncedAt: new Date() })
         .where(eq(channelListings.id, listing.id));
     }
 

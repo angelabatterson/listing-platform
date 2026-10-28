@@ -1,15 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { encryptionKey } from "@/lib/crypto";
 
 export type PhotoSize = "full" | "thumb";
 
-function signingKey(): Buffer {
-  const raw = process.env.ENCRYPTION_KEY;
-  if (!raw) throw new Error("ENCRYPTION_KEY is not set");
-  return Buffer.from(raw, "base64");
-}
-
 function signature(photoId: string): string {
-  return createHmac("sha256", signingKey()).update(`photo:${photoId}`).digest("base64url").slice(0, 22);
+  return createHmac("sha256", encryptionKey()).update(`photo:${photoId}`).digest("base64url").slice(0, 22);
 }
 
 // Marketplaces fetch listing photos by URL, so each photo gets a public link that

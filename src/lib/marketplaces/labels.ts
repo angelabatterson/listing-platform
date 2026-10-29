@@ -4,6 +4,7 @@ export const MARKETPLACE_LABELS: Record<Connection["marketplace"], string> = {
   ebay: "eBay",
   etsy: "Etsy",
   shopify: "Shopify",
+  tiktok: "TikTok Shop",
   poshmark: "Poshmark",
   depop: "Depop",
   facebook: "Facebook Marketplace",

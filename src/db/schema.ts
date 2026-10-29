@@ -13,9 +13,9 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-// eBay, Etsy and Shopify are reached through their APIs; the others through the Relistic
+// eBay, Etsy, Shopify and TikTok Shop are reached through their APIs; the others through the Relistic
 // Chrome extension, working in the seller's own signed-in browser (see lib/extension).
-export const marketplaceEnum = pgEnum("marketplace", ["ebay", "etsy", "poshmark", "depop", "facebook", "mercari", "whatnot", "grailed", "shopify"]);
+export const marketplaceEnum = pgEnum("marketplace", ["ebay", "etsy", "poshmark", "depop", "facebook", "mercari", "whatnot", "grailed", "shopify", "tiktok"]);
 
 export const connectionStatusEnum = pgEnum("connection_status", [
   "active",
@@ -113,8 +113,20 @@ export type ShopifyConnectionSettings = {
   locationId?: string;
 };
 
+// TikTok Shop: the shop, the cipher its API calls name it by, the warehouse stock is
+// kept at, and the seller's usual package weight (TikTok requires one on every product).
+export type TiktokConnectionSettings = {
+  tiktokShopId?: string;
+  shopCipher?: string;
+  warehouseId?: string;
+  packageWeightLb?: number;
+};
+
 // Each marketplace reads only its own keys from a connection's settings.
-export type ConnectionSettings = EbayConnectionSettings & EtsyConnectionSettings & ShopifyConnectionSettings;
+export type ConnectionSettings = EbayConnectionSettings &
+  EtsyConnectionSettings &
+  ShopifyConnectionSettings &
+  TiktokConnectionSettings;
 
 // A marketplace store: connected through OAuth, with encrypted tokens (see lib/crypto),
 // or, for the extension stores, added by the seller with no tokens at all.

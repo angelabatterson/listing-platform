@@ -6,6 +6,7 @@ import { MARKETPLACE_LABELS } from "@/lib/marketplaces";
 import { fetchEbaySales } from "@/lib/marketplaces/ebay/orders";
 import { fetchEtsySales } from "@/lib/marketplaces/etsy/orders";
 import { fetchShopifySales } from "@/lib/marketplaces/shopify/orders";
+import { fetchTiktokSales } from "@/lib/marketplaces/tiktok/orders";
 import type { SaleLine } from "@/lib/marketplaces/orders";
 import { syncItem } from "./run";
 
@@ -95,6 +96,7 @@ const fetchers: Partial<Record<Connection["marketplace"], (c: Connection, since:
   ebay: fetchEbaySales,
   etsy: fetchEtsySales,
   shopify: fetchShopifySales,
+  tiktok: fetchTiktokSales,
 };
 
 // Overlap each check a little so an order that arrives late isn't missed;

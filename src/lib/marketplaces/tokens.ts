@@ -17,10 +17,10 @@ export async function accessTokenFor(
   connection: Connection,
   refresh: (refreshToken: string) => Promise<OAuthTokens>,
 ): Promise<string> {
-  if (connection.accessTokenExpiresAt.getTime() - Date.now() > 60_000) {
+  const label = MARKETPLACE_LABELS[connection.marketplace];
+  if (connection.accessTokenEnc && connection.accessTokenExpiresAt && connection.accessTokenExpiresAt.getTime() - Date.now() > 60_000) {
     return decrypt(connection.accessTokenEnc);
   }
-  const label = MARKETPLACE_LABELS[connection.marketplace];
   if (!connection.refreshTokenEnc) throw new Error(`Reconnect your ${label} store.`);
   try {
     const tokens = await refresh(decrypt(connection.refreshTokenEnc));

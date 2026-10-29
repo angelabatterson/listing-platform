@@ -43,6 +43,13 @@
       "when": 1793243192225,
       "tag": "0005_shipping_labels",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793244638661,
+      "tag": "0006_extension_stores",
+      "breakpoints": true
     }
   ]
 }

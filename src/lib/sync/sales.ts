@@ -89,7 +89,8 @@ export async function recordSales(connection: Connection, lines: SaleLine[]): Pr
   return recorded;
 }
 
-const fetchers: Record<Connection["marketplace"], (c: Connection, since: Date) => Promise<SaleLine[]>> = {
+// Extension stores have no API to ask; the extension reports their sales instead.
+const fetchers: Partial<Record<Connection["marketplace"], (c: Connection, since: Date) => Promise<SaleLine[]>>> = {
   ebay: fetchEbaySales,
   etsy: fetchEtsySales,
 };
@@ -102,10 +103,12 @@ export async function checkAllStoresForSales() {
   const active = await db.query.connections.findMany({ where: eq(connections.status, "active") });
   const results: { connectionId: string; recorded?: number; error?: string }[] = [];
   for (const connection of active) {
+    const fetchSales = fetchers[connection.marketplace];
+    if (!fetchSales) continue;
     const checkedAt = new Date();
     const since = new Date((connection.ordersCheckedAt ?? connection.createdAt).getTime() - OVERLAP_MS);
     try {
-      const lines = await fetchers[connection.marketplace](connection, since);
+      const lines = await fetchSales(connection, since);
       const recorded = await recordSales(connection, lines);
       await db.update(connections).set({ ordersCheckedAt: checkedAt }).where(eq(connections.id, connection.id));
       results.push({ connectionId: connection.id, recorded });

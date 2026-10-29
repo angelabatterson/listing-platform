@@ -13,7 +13,9 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const marketplaceEnum = pgEnum("marketplace", ["ebay", "etsy"]);
+// eBay and Etsy are reached through their APIs; the others through the Relistic
+// Chrome extension, working in the seller's own signed-in browser (see lib/extension).
+export const marketplaceEnum = pgEnum("marketplace", ["ebay", "etsy", "poshmark", "depop", "facebook"]);
 
 export const connectionStatusEnum = pgEnum("connection_status", [
   "active",
@@ -33,6 +35,8 @@ export const listingStatusEnum = pgEnum("listing_status", [
   "listed",
   "ended",
   "error",
+  // Queued for the Chrome extension to post or take down.
+  "waiting",
 ]);
 
 const timestamps = {
@@ -106,7 +110,8 @@ export type EtsyConnectionSettings = {
 // Each marketplace reads only its own keys from a connection's settings.
 export type ConnectionSettings = EbayConnectionSettings & EtsyConnectionSettings;
 
-// A marketplace store connected through OAuth. Tokens are encrypted (see lib/crypto).
+// A marketplace store: connected through OAuth, with encrypted tokens (see lib/crypto),
+// or, for the extension stores, added by the seller with no tokens at all.
 export const connections = pgTable(
   "connections",
   {
@@ -118,8 +123,8 @@ export const connections = pgTable(
     environment: text("environment").notNull(),
     externalAccountId: text("external_account_id"),
     displayName: text("display_name"),
-    accessTokenEnc: text("access_token_enc").notNull(),
-    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }).notNull(),
+    accessTokenEnc: text("access_token_enc"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
     refreshTokenEnc: text("refresh_token_enc"),
     refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
     settings: jsonb("settings").$type<ConnectionSettings>().default({}).notNull(),
@@ -238,6 +243,10 @@ export const channelListings = pgTable(
     status: listingStatusEnum("status").default("not_listed").notNull(),
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
     lastError: text("last_error"),
+    // Extension stores only: the listing URL, and a fingerprint of what was posted,
+    // so saving an item only asks the seller to update the store when it changed.
+    remoteUrl: text("remote_url"),
+    postedFingerprint: text("posted_fingerprint"),
     ...timestamps,
   },
   (t) => [uniqueIndex("channel_listings_item_connection").on(t.itemId, t.connectionId)],
@@ -370,6 +379,49 @@ export const shippingLabels = pgTable(
   (t) => [index("shipping_labels_order").on(t.organizationId, t.connectionId, t.externalOrderId)],
 );
 
+// A browser with the Relistic extension connected to the account. Only a hash of the
+// key is kept; the extension sends the key itself as a bearer token.
+export const extensionKeys = pgTable("extension_keys", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  keyHash: text("key_hash").notNull().unique(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const extensionTaskKindEnum = pgEnum("extension_task_kind", ["list", "update", "end"]);
+export const extensionTaskStatusEnum = pgEnum("extension_task_status", ["open", "done", "failed", "cancelled"]);
+
+// Work for the extension: post, update or take down one listing on an extension store.
+// A listing has at most one open task; queuing new work cancels the old task.
+export const extensionTasks = pgTable(
+  "extension_tasks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => connections.id, { onDelete: "cascade" }),
+    listingId: uuid("listing_id")
+      .notNull()
+      .references(() => channelListings.id, { onDelete: "cascade" }),
+    kind: extensionTaskKindEnum("kind").notNull(),
+    status: extensionTaskStatusEnum("status").notNull().default("open"),
+    // The fingerprint of the item as queued, recorded on the listing once it's posted.
+    fingerprint: text("fingerprint"),
+    error: text("error"),
+    ...timestamps,
+  },
+  (t) => [index("extension_tasks_org_status").on(t.organizationId, t.status)],
+);
+
 // One row per AI-written draft, counted against the plan's monthly allowance.
 export const aiDrafts = pgTable(
   "ai_drafts",
@@ -411,6 +463,11 @@ export const channelListingsRelations = relations(channelListings, ({ one }) => 
   }),
 }));
 
+export const extensionTasksRelations = relations(extensionTasks, ({ one }) => ({
+  connection: one(connections, { fields: [extensionTasks.connectionId], references: [connections.id] }),
+  listing: one(channelListings, { fields: [extensionTasks.listingId], references: [channelListings.id] }),
+}));
+
 export const salesRelations = relations(sales, ({ one }) => ({
   item: one(items, { fields: [sales.itemId], references: [items.id] }),
 }));
@@ -422,3 +479,4 @@ export type Photo = typeof photos.$inferSelect;
 export type ItemImage = typeof itemImages.$inferSelect;
 export type Connection = typeof connections.$inferSelect;
 export type ChannelListing = typeof channelListings.$inferSelect;
+export type ExtensionTask = typeof extensionTasks.$inferSelect;

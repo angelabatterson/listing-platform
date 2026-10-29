@@ -2,7 +2,9 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { channelListings, items, syncEvents } from "@/db/schema";
+import { cancelOpenTasks, planExtensionWork } from "@/lib/extension/tasks";
 import { adapterFor, MARKETPLACE_LABELS } from "@/lib/marketplaces";
+import { isExtensionMarketplace } from "@/lib/marketplaces/labels";
 import { planChannelAction } from "./plan";
 
 export type SyncOutcome = { store: string; action: string; ok: boolean; message?: string };
@@ -25,8 +27,10 @@ export async function syncItem(
   for (const { connection, ...listing } of item.listings) {
     const store = MARKETPLACE_LABELS[connection.marketplace];
     const action = planChannelAction(item, listing);
-    if (action === "none") continue;
+    const viaExtension = isExtensionMarketplace(connection.marketplace);
+    if (action === "none" && !viaExtension) continue;
     if (connection.id === options.soldOn) {
+      if (viaExtension) await cancelOpenTasks(listing.id);
       if (action === "end") {
         await db
           .update(channelListings)
@@ -38,6 +42,31 @@ export async function syncItem(
 
     let ok = true;
     let message: string | undefined;
+    if (viaExtension) {
+      // Checked here too, so a listing the store would reject isn't handed to the seller.
+      const problems =
+        action !== "publish"
+          ? []
+          : connection.status !== "active"
+            ? [`Add ${store} again on the Stores page first.`]
+            : adapterFor(connection.marketplace).validate(item, listing, connection);
+      if (problems.length) {
+        ok = false;
+        message = `${store}: ${problems.join(" ")}`;
+        await cancelOpenTasks(listing.id);
+        await db
+          .update(channelListings)
+          .set({ status: "error", lastError: problems.join(" "), lastSyncedAt: new Date() })
+          .where(eq(channelListings.id, listing.id));
+      } else {
+        const queued = await planExtensionWork(item, listing, connection, action);
+        if (!queued) continue;
+        message = queued;
+      }
+      await db.insert(syncEvents).values({ organizationId, itemId, connectionId: connection.id, action, ok, message });
+      outcomes.push({ store, action, ok, message });
+      continue;
+    }
     try {
       const adapter = adapterFor(connection.marketplace);
       if (connection.status !== "active") throw new Error(`Reconnect your ${store} store first.`);

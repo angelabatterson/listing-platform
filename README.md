@@ -90,6 +90,23 @@ Each seller buys labels through their own Shippo account, so postage is billed t
 
 Buyer addresses are read from the store when a label is bought and aren't saved.
 
+## Poshmark, Depop and Facebook Marketplace (Chrome extension)
+
+None of these has a public listing API for US sellers, so they're worked through the
+Relistic Chrome extension in `extension/`, in the seller's own signed-in browser.
+Ticking one of these stores on an item queues an `extension_tasks` row instead of
+calling an API (`src/lib/extension/tasks.ts`). The extension checks
+`/api/extension/tasks` every minute with its own key. When the seller presses Post in
+the extension's popup, it opens the store's listing form and fills in the photos,
+title, description and price (`extension/fill.js`). The seller finishes the form and
+presses the store's Post button. The extension then reports the new listing's link
+to `/api/extension/tasks/:id`.
+
+Sellers connect the extension from the Stores page. To try it locally, open
+`chrome://extensions`, turn on Developer mode, choose Load unpacked, and pick the
+`extension/` folder. The cPanel package serves a zip of the extension at
+`/relistic-extension.zip`.
+
 ## Scheduled sales check
 
 `vercel.json` runs `/api/cron/check-sales` every 5 minutes on Vercel (this needs a paid Vercel plan; the free plan runs crons once a day). Set `CRON_SECRET`; Vercel sends it automatically. Anywhere else, call the endpoint on a schedule with `Authorization: Bearer $CRON_SECRET`.

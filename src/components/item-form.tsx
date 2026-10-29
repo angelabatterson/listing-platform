@@ -6,6 +6,7 @@ import { useFormAction } from "./use-form-action";
 import type { ItemFormState } from "@/app/(app)/items/actions";
 import { EBAY_CONDITIONS } from "@/lib/marketplaces/ebay/mapping";
 import { ETSY_WHEN_MADE } from "@/lib/marketplaces/etsy/config";
+import type { Connection } from "@/db/schema";
 
 export type ItemFormValues = {
   title: string;
@@ -27,8 +28,10 @@ export type ItemFormValues = {
 export type StoreOption = {
   connectionId: string;
   label: string;
-  marketplace: "ebay" | "etsy";
+  marketplace: Connection["marketplace"];
   ready: boolean;
+  // Posted through the Chrome extension, so there's no category to choose here.
+  extension: boolean;
   enabled: boolean;
   categoryId: string;
   whenMade: string;
@@ -139,13 +142,20 @@ export function ItemForm(props: {
               {!s.ready && (
                 <p className="mt-1 text-xs text-amber-700">Finish this store&apos;s setup on the Stores page before it can list.</p>
               )}
+              {s.extension && (
+                <p className="mt-1 text-xs text-zinc-500">
+                  Posted through the Relistic Chrome extension: it fills in the listing and you press Post on the site.
+                </p>
+              )}
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="label" htmlFor={`category_${s.connectionId}`}>
-                    {s.marketplace === "ebay" ? "eBay" : "Etsy"} category ID
-                  </label>
-                  <input id={`category_${s.connectionId}`} name={`category_${s.connectionId}`} className="input" defaultValue={s.categoryId} />
-                </div>
+                {!s.extension && (
+                  <div>
+                    <label className="label" htmlFor={`category_${s.connectionId}`}>
+                      {s.marketplace === "ebay" ? "eBay" : "Etsy"} category ID
+                    </label>
+                    <input id={`category_${s.connectionId}`} name={`category_${s.connectionId}`} className="input" defaultValue={s.categoryId} />
+                  </div>
+                )}
                 {s.marketplace === "etsy" && (
                   <div>
                     <label className="label" htmlFor={`whenMade_${s.connectionId}`}>When was it made?</label>
@@ -172,14 +182,16 @@ export function ItemForm(props: {
                   />
                 </div>
               </div>
-              <StoreAssist
-                formRef={formRef}
-                itemId={props.itemId ?? null}
-                connectionId={s.connectionId}
-                marketplace={s.marketplace}
-                ready={s.ready}
-                categoryHint={v.categoryHint}
-              />
+              {(s.marketplace === "ebay" || s.marketplace === "etsy") && (
+                <StoreAssist
+                  formRef={formRef}
+                  itemId={props.itemId ?? null}
+                  connectionId={s.connectionId}
+                  marketplace={s.marketplace}
+                  ready={s.ready}
+                  categoryHint={v.categoryHint}
+                />
+              )}
             </div>
           ))}
         </div>

@@ -17,7 +17,10 @@ type Field = {
 // successful save; other fields keep what was typed.
 export function SettingsForm(props: {
   title: string;
+  description?: string;
   submitLabel: string;
+  // Styles the section and button for an action that can't be undone.
+  danger?: boolean;
   fields: Field[];
   action: (state: SettingsState, formData: FormData) => Promise<SettingsState>;
 }) {
@@ -32,8 +35,9 @@ export function SettingsForm(props: {
     });
   }, [state]);
   return (
-    <form ref={form} onSubmit={onSubmit} className="card flex flex-col gap-4">
+    <form ref={form} onSubmit={onSubmit} className={`card flex flex-col gap-4 ${props.danger ? "border-red-200" : ""}`}>
       <h2 className="text-lg font-semibold">{props.title}</h2>
+      {props.description && <p className="text-sm text-zinc-600">{props.description}</p>}
       {props.fields.map((f) => (
         <div key={f.name}>
           <label htmlFor={`${uid}-${f.name}`} className="label">{f.label}</label>
@@ -51,7 +55,7 @@ export function SettingsForm(props: {
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
       {state?.saved && !pending && <p className="text-sm text-green-700">{state.saved}</p>}
       <div>
-        <button className="btn" disabled={pending}>{pending ? "Saving…" : props.submitLabel}</button>
+        <button className={props.danger ? "btn bg-red-700 hover:bg-red-600" : "btn"} disabled={pending}>{pending ? "Saving…" : props.submitLabel}</button>
       </div>
     </form>
   );

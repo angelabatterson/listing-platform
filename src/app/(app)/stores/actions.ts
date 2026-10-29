@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { connections } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { ensureEbayLocation } from "@/lib/marketplaces/ebay/adapter";
+import { isExtensionMarketplace, type ExtensionMarketplace } from "@/lib/marketplaces/labels";
 
 export type StoreSettingsState = { error?: string; saved?: boolean } | undefined;
 
@@ -44,6 +45,21 @@ export async function saveEbaySettings(
   }
   revalidatePath("/stores");
   return { saved: true };
+}
+
+// Poshmark, Depop and Facebook have no sign-in to Relistic: the extension works in the
+// seller's own browser, so adding the store just makes it available to tick on items.
+export async function addExtensionStore(marketplace: ExtensionMarketplace) {
+  const user = await requireUser();
+  if (!isExtensionMarketplace(marketplace)) return;
+  await db
+    .insert(connections)
+    .values({ organizationId: user.organizationId, marketplace, environment: "production", status: "active" })
+    .onConflictDoUpdate({
+      target: [connections.organizationId, connections.marketplace],
+      set: { status: "active" },
+    });
+  revalidatePath("/stores");
 }
 
 export async function disconnectStore(connectionId: string) {

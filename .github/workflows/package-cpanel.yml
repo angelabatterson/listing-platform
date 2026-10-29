@@ -28,7 +28,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "cpanel-${{ github.run_number }}" relistic-cpanel.zip \
+          gh release create "cpanel-${{ github.run_number }}" relistic-cpanel.zip relistic-extension.zip \
             --target "${{ github.sha }}" \
             --title "cPanel package ${{ github.run_number }}" \
             --notes "Built from ${{ github.sha }}. Download relistic-cpanel.zip below and upload it to your cPanel Node.js app folder." \

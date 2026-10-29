@@ -1,9 +1,11 @@
 import type { ChannelListing, Connection } from "@/db/schema";
 import type { StoreOption } from "@/components/item-form";
 import { MARKETPLACE_LABELS } from "@/lib/marketplaces";
+import { isExtensionMarketplace } from "@/lib/marketplaces/labels";
 
 export function isConnectionReady(c: Connection): boolean {
   if (c.status !== "active") return false;
+  if (isExtensionMarketplace(c.marketplace)) return true;
   if (c.marketplace === "ebay") {
     const s = c.settings;
     return Boolean(s.merchantLocationKey && s.fulfillmentPolicyId && s.paymentPolicyId && s.returnPolicyId);
@@ -25,6 +27,7 @@ export function storeOptions(conns: Connection[], listings: ChannelListing[] = [
       label: storeLabel(c),
       marketplace: c.marketplace,
       ready: isConnectionReady(c),
+      extension: isExtensionMarketplace(c.marketplace),
       enabled: l?.enabled ?? false,
       categoryId: l?.overrides.categoryId ?? "",
       whenMade: l?.overrides.whenMade ?? "",

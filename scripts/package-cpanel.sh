@@ -10,6 +10,11 @@ out=.next/standalone
 if [ -d public ]; then cp -r public "$out/"; fi
 mkdir -p "$out/.next"
 cp -r .next/static "$out/.next/"
+# The Chrome extension, offered as a download on the Stores page.
+mkdir -p "$out/public"
+rm -f "$out/public/relistic-extension.zip"
+(cd extension && zip -qr "../$out/public/relistic-extension.zip" .)
+cp "$out/public/relistic-extension.zip" relistic-extension.zip
 # Database changes, applied when the app starts (MIGRATE_ON_START below).
 cp -r drizzle "$out/"
 

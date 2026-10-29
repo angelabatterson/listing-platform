@@ -41,3 +41,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 relistic-cpanel.zip
+
+# built by scripts/package-cpanel.sh
+/relistic-cpanel.zip
+/relistic-extension.zip

@@ -41,6 +41,8 @@ export function makeListing(overrides: Partial<ChannelListing> = {}): ChannelLis
     status: "not_listed",
     lastSyncedAt: null,
     lastError: null,
+    remoteUrl: null,
+    postedFingerprint: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

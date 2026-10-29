@@ -53,6 +53,18 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
         );
       })}
 
+      {item.listings.some((l) => l.status === "waiting") && (
+        <p className="rounded-md bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          Waiting in the Relistic extension:{" "}
+          {item.listings
+            .filter((l) => l.status === "waiting")
+            .map((l) => conns.find((c) => c.id === l.connectionId))
+            .map((c) => (c ? storeLabel(c) : "Store"))
+            .join(", ")}
+          . Click the Relistic icon in Chrome&apos;s toolbar to finish.
+        </p>
+      )}
+
       {item.status === "draft" && item.batchId && (
         <p className="rounded-md bg-amber-50 px-4 py-2 text-sm text-amber-800">
           The AI wrote this draft. Check the details and price, add the store categories, then set Status to Active to

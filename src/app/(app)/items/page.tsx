@@ -11,6 +11,7 @@ const statusStyles: Record<string, string> = {
   error: "bg-red-100 text-red-800",
   ended: "bg-zinc-100 text-zinc-600",
   not_listed: "bg-zinc-100 text-zinc-600",
+  waiting: "bg-amber-100 text-amber-900",
 };
 
 const statusText: Record<string, string> = {
@@ -18,6 +19,7 @@ const statusText: Record<string, string> = {
   error: "Needs attention",
   ended: "Ended",
   not_listed: "Not listed",
+  waiting: "Waiting in extension",
 };
 
 export default async function ItemsPage() {

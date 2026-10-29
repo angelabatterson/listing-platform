@@ -23,6 +23,10 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
     where: eq(connections.organizationId, user.organizationId),
   });
   const listingProblems = item.listings.filter((l) => l.status === "error");
+  const tickedStores = item.listings
+    .filter((l) => l.enabled)
+    .map((l) => conns.find((c) => c.id === l.connectionId))
+    .map((c) => (c ? storeLabel(c) : "Store"));
   const images = [...item.images].sort((a, b) => a.position - b.position);
 
   return (
@@ -41,8 +45,17 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
         </div>
       </div>
 
-      {saved && listingProblems.length === 0 && (
-        <p className="rounded-md bg-green-50 px-4 py-2 text-sm text-green-800">Saved and synced.</p>
+      {saved && item.status === "draft" ? (
+        <p className="rounded-md bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          Saved as a draft.{" "}
+          {tickedStores.length > 0 &&
+            `Drafts aren't sent to any store, so it isn't on ${tickedStores.join(" or ")} yet. To list it, change Status to Active and save again.`}
+        </p>
+      ) : (
+        saved &&
+        listingProblems.length === 0 && (
+          <p className="rounded-md bg-green-50 px-4 py-2 text-sm text-green-800">Saved and synced.</p>
+        )
       )}
       {listingProblems.map((l) => {
         const conn = conns.find((c) => c.id === l.connectionId);

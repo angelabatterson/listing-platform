@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Relistic",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Post your Relistic items to Poshmark, Depop, Mercari, Facebook Marketplace and Whatnot, and take them down when they sell.",
   "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" },
   "action": { "default_popup": "popup.html", "default_icon": { "16": "icons/16.png", "48": "icons/48.png" } },

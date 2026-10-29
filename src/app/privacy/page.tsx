@@ -30,7 +30,7 @@ export default function PrivacyPage() {
       </div>
 
       <p>
-        Relistic is a service run by Apeiros Marketing, LLC (&ldquo;we&rdquo;) that helps sellers list items on several
+        Relistic is a service run by Apeiros Marketing, LLC, a company of Jangle Enterprises, LLC (&ldquo;we&rdquo;), that helps sellers list items on several
         online marketplaces and keep them in sync. This policy explains what personal information we collect, how we
         use it, and the choices you have.
       </p>
@@ -116,7 +116,7 @@ export default function PrivacyPage() {
           <a href={`mailto:${CONTACT}`} className="underline">
             {CONTACT}
           </a>
-          , Apeiros Marketing, LLC.
+          , Apeiros Marketing, LLC (Jangle Enterprises, LLC).
         </p>
       </Section>
     </main>

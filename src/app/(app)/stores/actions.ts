@@ -107,7 +107,14 @@ export async function disconnectStore(connectionId: string) {
   const user = await requireUser();
   await db
     .update(connections)
-    .set({ status: "disconnected" })
+    // Forget the store's tokens too: reconnecting signs in again.
+    .set({
+      status: "disconnected",
+      accessTokenEnc: null,
+      accessTokenExpiresAt: null,
+      refreshTokenEnc: null,
+      refreshTokenExpiresAt: null,
+    })
     .where(and(eq(connections.id, connectionId), eq(connections.organizationId, user.organizationId)));
   revalidatePath("/stores");
 }

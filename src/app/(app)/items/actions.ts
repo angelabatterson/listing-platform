@@ -25,6 +25,11 @@ const itemSchema = z.object({
     .regex(/^[A-Za-z0-9_-]+$/, "SKUs can only use letters, numbers, dashes and underscores"),
   description: z.string().trim().default(""),
   price: z.string().refine((v) => Number(v) > 0, "Enter a price above zero"),
+  cost: z
+    .string()
+    .trim()
+    .default("")
+    .refine((v) => v === "" || Number(v) >= 0, "What you paid can't be negative"),
   quantity: z.coerce.number().int().min(0, "Quantity can't be negative"),
   condition: z.string().min(1),
   brand: z.string().trim().optional(),
@@ -51,6 +56,7 @@ export async function saveItem(
     sku: data.sku,
     description: data.description,
     priceCents: dollarsToCents(data.price),
+    costCents: data.cost === "" ? null : dollarsToCents(data.cost),
     quantity: data.quantity,
     condition: data.condition,
     brand: data.brand || null,

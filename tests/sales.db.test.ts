@@ -85,6 +85,16 @@ describe.runIf(process.env.TEST_DATABASE_URL)("selling an item on one store", ()
     expect(events.map((e) => e.message)).toContain("Sold 1 on eBay. 0 left.");
   });
 
+  it("keeps the sale's money and buyer for the dashboard", async () => {
+    const ebay = (await db.query.connections.findFirst({ where: eq(connections.id, ids.ebay) }))!;
+    await recordSales(ebay, [
+      { ...ebaySale, title: "Jacket", currency: "USD", priceCents: 4500, shippingCents: 800, feesCents: 600, buyerId: "pat", buyerName: "Pat" },
+    ]);
+    expect(await db.select().from(sales)).toMatchObject([
+      { title: "Jacket", priceCents: 4500, shippingCents: 800, feesCents: 600, feesEstimated: false, buyerId: "pat", buyerName: "Pat" },
+    ]);
+  });
+
   it("counts the same order line only once", async () => {
     const ebay = (await db.query.connections.findFirst({ where: eq(connections.id, ids.ebay) }))!;
     await recordSales(ebay, [ebaySale]);

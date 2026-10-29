@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ebayAdapter } from "@/lib/marketplaces/ebay/adapter";
 import { toInventoryItem, toOffer, validateForEbay } from "@/lib/marketplaces/ebay/mapping";
 import { buildAuthorizeUrl } from "@/lib/marketplaces/ebay/oauth";
-import { fetchEbaySales } from "@/lib/marketplaces/ebay/orders";
+import { fetchEbaySales, orderToSales } from "@/lib/marketplaces/ebay/orders";
+import { apportion } from "@/lib/marketplaces/orders";
 import { makeConnection, makeItem, makeListing } from "./fixtures";
 
 describe("eBay mapping", () => {
@@ -143,5 +144,37 @@ describe("eBay orders", () => {
       ["A", "A-L", "E1"],
       ["C", "C-L", "E1"],
     ]);
+  });
+});
+
+describe("eBay order money", () => {
+  it("records price after discounts, shipping, a share of the order's fees, and the buyer", () => {
+    const lines = orderToSales({
+      orderId: "O9",
+      creationDate: "2026-10-28T10:00:00.000Z",
+      buyer: { username: "pyrexfan", buyerRegistrationAddress: { fullName: "Pat Buyer" } },
+      totalMarketplaceFee: { value: "10.01", currency: "USD" },
+      lineItems: [
+        {
+          lineItemId: "L1",
+          quantity: 1,
+          title: "Jacket",
+          lineItemCost: { value: "60.00", currency: "USD" },
+          deliveryCost: { shippingCost: { value: "8.50" } },
+          appliedPromotions: [{ discountAmount: { value: "5.00" } }],
+        },
+        { lineItemId: "L2", quantity: 2, title: "Mugs", lineItemCost: { value: "27.50", currency: "USD" } },
+      ],
+    });
+    expect(lines).toMatchObject([
+      { lineId: "L1", priceCents: 5500, shippingCents: 850, feesCents: 668, currency: "USD", buyerId: "pyrexfan", buyerName: "Pat Buyer" },
+      { lineId: "L2", priceCents: 2750, shippingCents: null, feesCents: 333, title: "Mugs" },
+    ]);
+    expect(lines[0].feesCents! + lines[1].feesCents!).toBe(1001);
+  });
+
+  it("splits an amount by weight without losing cents", () => {
+    expect(apportion(100, [1, 1, 1])).toEqual([34, 33, 33]);
+    expect(apportion(500, [0, 0])).toEqual([500, 0]);
   });
 });

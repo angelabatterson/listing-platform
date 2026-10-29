@@ -177,7 +177,7 @@ describe("Etsy receipts", () => {
       status: "paid",
       transactions: [{ transaction_id: 1, sku: "JACKET-001", listing_id: 9001, quantity: 2 }],
     };
-    expect(receiptToSales(receipt)).toEqual([
+    expect(receiptToSales(receipt)).toMatchObject([
       {
         orderId: "77",
         lineId: "1",
@@ -185,8 +185,41 @@ describe("Etsy receipts", () => {
         remoteListingId: "9001",
         quantity: 2,
         soldAt: new Date(1_800_000_000_000),
+        priceCents: null,
+        feesCents: null,
+        feesEstimated: false,
       },
     ]);
     expect(receiptToSales({ ...receipt, status: "canceled" })).toEqual([]);
+  });
+
+  it("records the price, shipping, buyer and estimated fees", () => {
+    const [line] = receiptToSales({
+      receipt_id: 78,
+      created_timestamp: 1_800_000_000,
+      status: "paid",
+      name: "Sam Shopper",
+      buyer_user_id: 4242,
+      transactions: [
+        {
+          transaction_id: 2,
+          quantity: 2,
+          title: "Mug",
+          price: { amount: 1250, divisor: 100, currency_code: "USD" },
+          shipping_cost: { amount: 500, divisor: 100, currency_code: "USD" },
+        },
+      ],
+    });
+    // 9.5% of $30.00 is 285, plus the 20 cent listing and 25 cent order fees.
+    expect(line).toMatchObject({
+      title: "Mug",
+      priceCents: 2500,
+      shippingCents: 500,
+      feesCents: 330,
+      feesEstimated: true,
+      currency: "USD",
+      buyerId: "4242",
+      buyerName: "Sam Shopper",
+    });
   });
 });

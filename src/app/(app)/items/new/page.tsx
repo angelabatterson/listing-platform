@@ -23,6 +23,7 @@ export default async function NewItemPage() {
           sku: "",
           description: "",
           price: "",
+          cost: "",
           quantity: 1,
           condition: "USED_GOOD",
           brand: "",

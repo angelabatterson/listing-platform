@@ -12,6 +12,7 @@ export type ItemFormValues = {
   sku: string;
   description: string;
   price: string;
+  cost: string;
   quantity: number;
   condition: string;
   brand: string;
@@ -70,6 +71,11 @@ export function ItemForm(props: {
         <div>
           <label className="label" htmlFor="price">Price (USD)</label>
           <input id="price" name="price" type="number" step="0.01" min="0.01" className="input" defaultValue={v.price} required />
+        </div>
+        <div>
+          <label className="label" htmlFor="cost">What you paid (optional)</label>
+          <input id="cost" name="cost" type="number" step="0.01" min="0" className="input" defaultValue={v.cost} />
+          <p className="mt-1 text-xs text-zinc-500">Only you see this. It&apos;s used for profit on the dashboard.</p>
         </div>
         <div>
           <label className="label" htmlFor="quantity">Quantity</label>

@@ -17,8 +17,9 @@ import { ebayEnvironment, ebayHosts, ebayIsConfigured } from "@/lib/marketplaces
 import { fetchEtsyShopOptions } from "@/lib/marketplaces/etsy/adapter";
 import { etsyIsConfigured } from "@/lib/marketplaces/etsy/config";
 import { shopifyIsConfigured } from "@/lib/marketplaces/shopify/config";
+import { DEFAULT_PACKAGE_WEIGHT_LB, tiktokIsConfigured } from "@/lib/marketplaces/tiktok/config";
 import { isConnectionReady, storeLabel } from "@/lib/stores";
-import { addExtensionStore, createEbayStarterPolicies, disconnectStore, importStorePage, saveEbaySettings, saveEtsySettings } from "./actions";
+import { addExtensionStore, createEbayStarterPolicies, disconnectStore, importStorePage, saveEbaySettings, saveEtsySettings, saveTiktokSettings } from "./actions";
 
 const EXTENSION_SITES: Record<ExtensionMarketplace, string> = {
   poshmark: "https://poshmark.com",
@@ -141,6 +142,9 @@ const errors: Record<string, string> = {
     "Enter your store's Shopify address, like mystore.myshopify.com. You'll find it in Shopify under Settings, then Domains.",
   shopify_declined: "Shopify didn't grant access. Try connecting again and choose Install.",
   shopify_state: "That Shopify sign-in expired or didn't match. Please try again.",
+  tiktok_declined: "TikTok Shop didn't grant access. Try connecting again and choose Authorize.",
+  tiktok_state: "That TikTok Shop sign-in expired or didn't match. Please try again.",
+  tiktok_no_shop: "Relistic couldn't find a TikTok Shop with a shipping warehouse on that account. Check your shop in TikTok Seller Center, then connect again.",
   shopify_no_location: "Relistic couldn't find a location on your Shopify store to keep stock at. Add one in Shopify under Settings, then Locations, and connect again.",
 };
 
@@ -216,6 +220,7 @@ export default async function StoresPage(props: PageProps<"/stores">) {
   const ebay = live("ebay");
   const etsy = live("etsy");
   const shopify = live("shopify");
+  const tiktok = live("tiktok");
   const [ebayPolicies, etsyOptions, ebayImported, etsyImported] = await Promise.all([
     ebay ? load(() => fetchEbayPolicies(ebay)) : undefined,
     etsy?.settings.shopId ? load(() => fetchEtsyShopOptions(etsy)) : undefined,
@@ -229,10 +234,10 @@ export default async function StoresPage(props: PageProps<"/stores">) {
       {typeof error === "string" && errors[error] && (
         <p className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-800">{errors[error]}</p>
       )}
-      {(connected === "ebay" || connected === "etsy" || connected === "shopify") && (
+      {(connected === "ebay" || connected === "etsy" || connected === "shopify" || connected === "tiktok") && (
         <p className="rounded-md bg-green-50 px-4 py-2 text-sm text-green-800">
-          {connected === "shopify"
-            ? "Shopify connected. Tick it on an item to list it there."
+          {connected === "shopify" || connected === "tiktok"
+            ? `${MARKETPLACE_LABELS[connected]} connected. Tick it on an item to list it there.`
             : `${MARKETPLACE_LABELS[connected]} connected. Finish the settings below so items can be listed.`}
         </p>
       )}
@@ -308,6 +313,33 @@ export default async function StoresPage(props: PageProps<"/stores">) {
           Items you list on Shopify become products in your store, with their photos, price and quantity. When one
           sells somewhere else, Relistic lowers its stock, or hides it as a draft when none are left.
         </p>
+      </section>
+
+      <section className="card">
+        <StoreHeader connection={tiktok} marketplace="tiktok" configured={tiktokIsConfigured()} />
+        <p className="mt-3 text-sm text-zinc-600">
+          Items you list on TikTok Shop become products in your shop. TikTok checks each new product before it goes
+          live. If you don&apos;t enter a TikTok Shop category on an item, Relistic uses the one TikTok suggests for its
+          title. When an item sells somewhere else, Relistic lowers its stock, or deactivates it when none are left.
+        </p>
+        {tiktok?.status === "active" && (
+          <form action={saveTiktokSettings.bind(null, tiktok.id)} className="mt-4 flex flex-wrap items-end gap-3">
+            <div>
+              <label className="label" htmlFor="packageWeightLb">Usual package weight (pounds)</label>
+              <input
+                id="packageWeightLb"
+                name="packageWeightLb"
+                type="number"
+                step="0.1"
+                min="0.1"
+                className="input w-40"
+                defaultValue={tiktok.settings.packageWeightLb ?? DEFAULT_PACKAGE_WEIGHT_LB}
+              />
+            </div>
+            <button className="btn-secondary">Save</button>
+            <p className="w-full text-xs text-zinc-500">TikTok needs a weight on every product. New products use this one.</p>
+          </form>
+        )}
       </section>
 
       <ExtensionStores organizationId={user.organizationId} conns={conns} />

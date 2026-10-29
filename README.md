@@ -96,6 +96,12 @@ Sellers connect their store on the Stores page by typing its `*.myshopify.com` a
 
 Each item becomes one product with a single variant (`productSet` in the Admin GraphQL API), stocked at the store's first active location. Photos are sent only when the product is created. Ending a listing sets the product to Draft. Sales come from the scheduled check, which reads paid orders; Shopify doesn't report its payment fees there, and buyer details need Shopify's protected customer data approval, so neither is saved. `/api/shopify/webhooks` handles `app/uninstalled` and the privacy webhooks every public app must answer.
 
+## TikTok Shop
+
+Sellers press **Connect TikTok Shop** on the Stores page and authorize Relistic in TikTok's US seller authorization page (`src/app/api/tiktok/oauth`). Set `TIKTOK_APP_ID` (used as the service id), `TIKTOK_APP_KEY` and `TIKTOK_APP_SECRET` from the Partner Center app, whose redirect URL must be `${APP_URL}/api/tiktok/oauth/callback`. Every API call is signed (`signRequest` in `src/lib/marketplaces/tiktok/client.ts`).
+
+Each item becomes one product with one SKU, stocked at the shop's default warehouse, using the item's TikTok category ID or the category TikTok recommends for its title, and the seller's usual package weight from the Stores page. Photos are uploaded to TikTok when the product is created. Later saves change only the title, description, price and stock (partial edit), so the product doesn't go back through TikTok's review. Ending a listing deactivates the product. Sales come from the scheduled check's order search; fees and buyer details aren't saved.
+
 ## Poshmark, Depop, Mercari, Grailed, Facebook Marketplace and Whatnot (Chrome extension)
 
 None of these has a public listing API for US sellers, so they're worked through the

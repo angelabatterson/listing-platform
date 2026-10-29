@@ -154,10 +154,10 @@ export function ItemForm(props: {
                 </p>
               )}
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                {(s.marketplace === "ebay" || s.marketplace === "etsy") && (
+                {(s.marketplace === "ebay" || s.marketplace === "etsy" || s.marketplace === "tiktok") && (
                   <div>
                     <label className="label" htmlFor={`category_${s.connectionId}`}>
-                      {s.marketplace === "ebay" ? "eBay" : "Etsy"} category ID
+                      {s.marketplace === "ebay" ? "eBay category ID" : s.marketplace === "etsy" ? "Etsy category ID" : "TikTok Shop category ID (optional)"}
                     </label>
                     <input id={`category_${s.connectionId}`} name={`category_${s.connectionId}`} className="input" defaultValue={s.categoryId} />
                   </div>

@@ -141,6 +141,25 @@ export async function saveEtsySettings(
   return { saved: true };
 }
 
+const tiktokSettingsSchema = z.object({
+  packageWeightLb: z.coerce.number().positive("Enter a package weight above zero").max(150),
+});
+
+export async function saveTiktokSettings(connectionId: string, formData: FormData) {
+  const user = await requireUser();
+  const parsed = tiktokSettingsSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return;
+  const connection = await db.query.connections.findFirst({
+    where: and(eq(connections.id, connectionId), eq(connections.organizationId, user.organizationId)),
+  });
+  if (!connection || connection.marketplace !== "tiktok") return;
+  await db
+    .update(connections)
+    .set({ settings: { ...connection.settings, packageWeightLb: parsed.data.packageWeightLb } })
+    .where(eq(connections.id, connection.id));
+  revalidatePath("/stores");
+}
+
 export type ImportStep = { error?: string; counts?: ImportCounts; total?: number; done?: boolean };
 
 // Import one page of a store's live listings. The Stores page calls this page by page

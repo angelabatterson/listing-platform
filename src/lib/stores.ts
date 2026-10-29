@@ -12,6 +12,7 @@ export function isConnectionReady(c: Connection): boolean {
   }
   const s = c.settings;
   if (c.marketplace === "shopify") return Boolean(s.shopDomain && s.locationId);
+  if (c.marketplace === "tiktok") return Boolean(s.shopCipher && s.warehouseId);
   return Boolean(s.shopId && s.shippingProfileId && s.returnPolicyId && s.readinessStateId);
 }
 

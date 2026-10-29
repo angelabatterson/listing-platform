@@ -2,6 +2,7 @@ import type { Connection } from "@/db/schema";
 import { ebayAdapter } from "./ebay/adapter";
 import { etsyAdapter } from "./etsy/adapter";
 import { shopifyAdapter } from "./shopify/adapter";
+import { tiktokAdapter } from "./tiktok/adapter";
 import type { MarketplaceAdapter } from "./types";
 import { validateForExtension } from "@/lib/extension/tasks";
 
@@ -21,6 +22,7 @@ const adapters: Record<Connection["marketplace"], MarketplaceAdapter> = {
   ebay: ebayAdapter,
   etsy: etsyAdapter,
   shopify: shopifyAdapter,
+  tiktok: tiktokAdapter,
   poshmark: extensionAdapter,
   depop: extensionAdapter,
   facebook: extensionAdapter,

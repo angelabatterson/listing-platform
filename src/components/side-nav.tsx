@@ -17,9 +17,9 @@ const ICONS: Record<string, string> = {
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+  { href: "/crm", label: "CRM", icon: "crm" },
   { href: "/items", label: "Inventory", icon: "inventory" },
   { href: "/batches", label: "Photo batches", icon: "batches" },
-  { href: "/crm", label: "CRM", icon: "crm" },
   { href: "/activity", label: "Activity", icon: "activity" },
 ];
 

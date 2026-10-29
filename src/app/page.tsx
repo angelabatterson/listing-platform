@@ -26,6 +26,9 @@ export default async function Home(props: PageProps<"/">) {
         <Link href="/signup" className="btn">Create an account</Link>
         <Link href="/login" className="btn-secondary">Log in</Link>
       </div>
+      <p className="text-sm text-zinc-500">
+        <Link href="/privacy" className="underline">Privacy policy</Link>
+      </p>
     </main>
   );
 }

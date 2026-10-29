@@ -2,7 +2,7 @@ import type { ChannelListing, Connection } from "@/db/schema";
 import type { ItemWithImages, MarketplaceAdapter } from "../types";
 import { EbayApiError, ebayFetch } from "./client";
 import { DEFAULT_MARKETPLACE_ID } from "./config";
-import { isWebsiteListing, toInventoryItem, toOffer, validateForEbay } from "./mapping";
+import { formatPrice, isWebsiteListing, toInventoryItem, toOffer, validateForEbay } from "./mapping";
 import { endEbayItem, relistEbayItem, reviseEbayPriceAndQuantity } from "./trading";
 
 const OFFER_ALREADY_EXISTS = 25002;
@@ -101,6 +101,74 @@ export async function fetchEbayPolicies(connection: Connection): Promise<EbayPol
   };
   const [fulfillment, payment, returns] = await Promise.all([get("fulfillment"), get("payment"), get("return")]);
   return { fulfillment, payment, return: returns };
+}
+
+export type StarterPolicyChoices = {
+  // 0 means free shipping.
+  shippingCents: number;
+  handlingDays: number;
+  // 0 means no returns.
+  returnDays: 0 | 30 | 60;
+};
+
+const ALL_CATEGORIES = [{ name: "ALL_EXCLUDING_MOTORS_VEHICLES" }];
+
+// Starter shipping, payment and return policies, for sellers who have none yet (and for
+// eBay's sandbox, whose policy pages don't exist). Sellers can change them on eBay later.
+// A policy with the same name is reused, so pressing the button twice doesn't fail.
+export async function createStarterPolicies(connection: Connection, choices: StarterPolicyChoices) {
+  const marketplaceId = connection.settings.marketplaceId ?? DEFAULT_MARKETPLACE_ID;
+  const existing = await fetchEbayPolicies(connection);
+  const named = (kind: keyof EbayPolicies, name: string) => existing[kind].find((p) => p.name === name)?.id;
+  const create = async (kind: keyof EbayPolicies, name: string, body: Record<string, unknown>) => {
+    const found = named(kind, name);
+    if (found) {
+      await ebayFetch(connection, `/sell/account/v1/${kind}_policy/${found}`, {
+        method: "PUT",
+        body: { name, marketplaceId, categoryTypes: ALL_CATEGORIES, ...body },
+      });
+      return found;
+    }
+    const res = await ebayFetch<Record<string, string>>(connection, `/sell/account/v1/${kind}_policy`, {
+      method: "POST",
+      body: { name, marketplaceId, categoryTypes: ALL_CATEGORIES, ...body },
+    });
+    return res[`${kind}PolicyId`];
+  };
+
+  const free = choices.shippingCents === 0;
+  const fulfillmentPolicyId = await create("fulfillment", "Relistic shipping", {
+    handlingTime: { value: choices.handlingDays, unit: "DAY" },
+    shippingOptions: [
+      {
+        optionType: "DOMESTIC",
+        costType: "FLAT_RATE",
+        shippingServices: [
+          {
+            sortOrder: 1,
+            shippingCarrierCode: "USPS",
+            shippingServiceCode: "USPSGroundAdvantage",
+            freeShipping: free,
+            shippingCost: { value: formatPrice(choices.shippingCents), currency: "USD" },
+          },
+        ],
+      },
+    ],
+  });
+  const paymentPolicyId = await create("payment", "Relistic payment", { immediatePay: true });
+  const returnPolicyId = await create(
+    "return",
+    "Relistic returns",
+    choices.returnDays
+      ? {
+          returnsAccepted: true,
+          returnPeriod: { value: choices.returnDays, unit: "DAY" },
+          returnShippingCostPayer: "BUYER",
+          refundMethod: "MONEY_BACK",
+        }
+      : { returnsAccepted: false },
+  );
+  return { fulfillmentPolicyId, paymentPolicyId, returnPolicyId };
 }
 
 // Business policies are required by the Inventory API. Opting in is idempotent.

@@ -10,8 +10,6 @@ const nav = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/items", label: "Inventory" },
   { href: "/batches", label: "Photo batches" },
-  { href: "/shipping", label: "Shipping" },
-  { href: "/stores", label: "Stores" },
   { href: "/activity", label: "Activity" },
 ];
 

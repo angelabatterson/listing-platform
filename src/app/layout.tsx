@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Listing Sync",
+  title: "Relistic",
   description: "List once, sell everywhere, and keep every store in sync.",
 };
 

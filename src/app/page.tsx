@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LogoMark } from "@/components/logo";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -12,6 +13,10 @@ export default async function Home(props: PageProps<"/">) {
           Your account has been closed and its data deleted. Thanks for using Relistic.
         </p>
       )}
+      <p className="flex items-center gap-2 text-lg font-semibold">
+        <LogoMark className="h-7 w-7" />
+        Relistic
+      </p>
       <h1 className="text-4xl font-semibold tracking-tight">List once. Sell everywhere.</h1>
       <p className="text-lg text-zinc-600">
         Keep one inventory, choose which marketplaces each item appears on, and when it sells in one

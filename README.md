@@ -1,4 +1,4 @@
-# Listing Sync
+# Relistic
 
 A SaaS for resellers: keep one inventory, choose which marketplaces each item appears on, and keep every store in sync. When an item sells in one place it comes down everywhere else.
 

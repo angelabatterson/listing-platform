@@ -59,7 +59,7 @@ function Meter(props: { label: string; used: number; cap: number | null }) {
   );
 }
 
-function StatusText(props: { access: Access; periodEnd: Date | null; cancelling: boolean }) {
+function StatusText(props: { access: Access; periodEnd: Date | null; cancelling: boolean; trialing: boolean }) {
   const { access } = props;
   switch (access.state) {
     case "free":
@@ -84,7 +84,9 @@ function StatusText(props: { access: Access; periodEnd: Date | null; cancelling:
           {props.periodEnd &&
             (props.cancelling
               ? ` It's set to end on ${formatDate(props.periodEnd)}.`
-              : ` It renews on ${formatDate(props.periodEnd)}.`)}
+              : props.trialing
+                ? ` It's free until ${formatDate(props.periodEnd)}, when your card is charged for the first time.`
+                : ` It renews on ${formatDate(props.periodEnd)}.`)}
         </p>
       );
     case "past_due":
@@ -175,7 +177,12 @@ export default async function BillingPage(props: PageProps<"/billing">) {
       )}
 
       <div className="card space-y-4">
-        <StatusText access={access} periodEnd={org?.currentPeriodEnd ?? null} cancelling={org?.cancelAtPeriodEnd ?? false} />
+        <StatusText
+          access={access}
+          periodEnd={org?.currentPeriodEnd ?? null}
+          cancelling={org?.cancelAtPeriodEnd ?? false}
+          trialing={org?.subscriptionStatus === "trialing"}
+        />
         {subscribed && org?.stripeSubscriptionId && !org.cancelAtPeriodEnd && (
           <form action={cancelSubscription}>
             <button className="text-sm text-red-700 underline">Cancel subscription</button>

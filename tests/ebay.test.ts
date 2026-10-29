@@ -72,7 +72,14 @@ describe("eBay adapter", () => {
         if (key === "GET /sell/account/v1/fulfillment_policy") return list("fulfillment", []);
         if (key === "GET /sell/account/v1/payment_policy") return list("payment", [{ paymentPolicyId: "P9", name: "Relistic payment" }]);
         if (key === "GET /sell/account/v1/return_policy") return list("return", []);
-        if (key === "POST /sell/account/v1/fulfillment_policy") return Response.json({ fulfillmentPolicyId: "F1" }, { status: 201 });
+        if (key === "POST /sell/account/v1/fulfillment_policy") {
+          // Like eBay's sandbox, which doesn't know Ground Advantage.
+          const body = JSON.parse(String(init.body));
+          if (body.shippingOptions[0].shippingServices[0].shippingServiceCode === "USPSGroundAdvantage") {
+            return Response.json({ errors: [{ errorId: 20403, message: "Please select a valid shipping service." }] }, { status: 400 });
+          }
+          return Response.json({ fulfillmentPolicyId: "F1" }, { status: 201 });
+        }
         if (key === "PUT /sell/account/v1/payment_policy/P9") return Response.json({ paymentPolicyId: "P9" });
         if (key === "POST /sell/account/v1/return_policy") return Response.json({ returnPolicyId: "R1" }, { status: 201 });
         throw new Error(`Unexpected request: ${key}`);
@@ -84,7 +91,7 @@ describe("eBay adapter", () => {
       name: "Relistic shipping",
       marketplaceId: "EBAY_US",
       handlingTime: { value: 1, unit: "DAY" },
-      shippingOptions: [{ shippingServices: [{ shippingServiceCode: "USPSGroundAdvantage", freeShipping: true }] }],
+      shippingOptions: [{ shippingServices: [{ shippingServiceCode: "USPSPriority", freeShipping: true }] }],
     });
     expect(bodies["POST /sell/account/v1/return_policy"]).toMatchObject({ returnsAccepted: false });
   });

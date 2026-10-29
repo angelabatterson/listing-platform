@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { logout } from "@/app/(auth)/actions";
+import { AccountMenu } from "@/components/account-menu";
 import { requireUser } from "@/lib/auth";
 import { getAccess } from "@/lib/billing/access";
 import { daysLeft, inactiveMessage, type Access } from "@/lib/billing/plans";
-import { billingEnabled } from "@/lib/billing/stripe";
 
 const nav = [
   { href: "/items", label: "Inventory" },
@@ -40,22 +40,18 @@ function BillingBanner({ access }: { access: Access }) {
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
   const access = await getAccess(user);
-  const links = billingEnabled() ? [...nav, { href: "/billing", label: "Billing" }] : nav;
   return (
     <div className="flex flex-1 flex-col">
       <header className="border-b border-zinc-200 bg-white">
         <div className="mx-auto flex max-w-5xl items-center gap-6 px-6 py-3">
           <Link href="/items" className="font-semibold">Listing Sync</Link>
           <nav className="flex gap-4 text-sm">
-            {links.map((n) => (
+            {nav.map((n) => (
               <Link key={n.href} href={n.href} className="text-zinc-600 hover:text-zinc-900">{n.label}</Link>
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-3 text-sm text-zinc-600">
-            <span>{user.email}</span>
-            <form action={logout}>
-              <button className="underline">Log out</button>
-            </form>
+          <div className="ml-auto">
+            <AccountMenu label={user.name || user.email} email={user.email} logout={logout} />
           </div>
         </div>
       </header>

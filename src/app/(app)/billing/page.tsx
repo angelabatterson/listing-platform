@@ -14,7 +14,7 @@ import {
   type PlanKey,
 } from "@/lib/billing/plans";
 import { billingEnabled, stripe } from "@/lib/billing/stripe";
-import { choosePlan, openBillingPortal } from "./actions";
+import { cancelSubscription, choosePlan, openBillingPortal } from "./actions";
 
 const formatDate = (d: Date) => d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
@@ -63,7 +63,12 @@ function StatusText(props: { access: Access; periodEnd: Date | null; cancelling:
   const { access } = props;
   switch (access.state) {
     case "free":
-      return <p>Your account has full use and doesn&apos;t need a plan.</p>;
+      return (
+        <p>
+          You&apos;re on the <strong>Free unlimited plan</strong>. There&apos;s nothing to pay and no limit on listings
+          or AI drafts.
+        </p>
+      );
     case "trial":
       return (
         <p>
@@ -121,7 +126,7 @@ function PlanCard(props: { plan: PlanKey; price: string | null; current: boolean
 }
 
 export default async function BillingPage(props: PageProps<"/billing">) {
-  const { checkout } = await props.searchParams;
+  const { checkout, cancelled } = await props.searchParams;
   const user = await requireUser();
 
   if (!billingEnabled()) {
@@ -129,8 +134,8 @@ export default async function BillingPage(props: PageProps<"/billing">) {
       <div>
         <h1 className="mb-6 text-2xl font-semibold">Billing</h1>
         <div className="card text-zinc-600">
-          Billing isn&apos;t switched on yet, so every account has full use. Add the Stripe settings on the server to
-          turn it on.
+          Subscriptions aren&apos;t switched on yet, so every account has full use for free. They start once the
+          Stripe settings are added on the server (see the README&apos;s &quot;Subscriptions (Stripe)&quot; section).
         </div>
       </div>
     );
@@ -162,8 +167,23 @@ export default async function BillingPage(props: PageProps<"/billing">) {
         </div>
       )}
 
+      {cancelled === "1" && (
+        <div className="rounded-md border border-zinc-200 bg-white p-4 text-sm">
+          Your subscription is cancelled. You keep your plan until the end of the period you&apos;ve already paid
+          for, and your listings and data are kept after that. You can choose a plan again anytime.
+        </div>
+      )}
+
       <div className="card space-y-4">
         <StatusText access={access} periodEnd={org?.currentPeriodEnd ?? null} cancelling={org?.cancelAtPeriodEnd ?? false} />
+        {subscribed && org?.stripeSubscriptionId && !org.cancelAtPeriodEnd && (
+          <form action={cancelSubscription}>
+            <button className="text-sm text-red-700 underline">Cancel subscription</button>
+          </form>
+        )}
+        {subscribed && org?.cancelAtPeriodEnd && (
+          <p className="text-sm text-zinc-600">Changed your mind? Use Manage billing to keep your plan.</p>
+        )}
         {access.state !== "free" && (
           <div className="grid gap-4 sm:grid-cols-2">
             <Meter label="Active listings" used={used.activeListings} cap={access.limits.activeListings} />
@@ -185,9 +205,11 @@ export default async function BillingPage(props: PageProps<"/billing">) {
           ))}
         </div>
       )}
-      <p className="text-xs text-zinc-500">
-        Payments are handled by Stripe. Card details never reach this app. Cancel anytime from Manage billing.
-      </p>
+      {access.state !== "free" && (
+        <p className="text-xs text-zinc-500">
+          Payments are handled by Stripe. Card details never reach this app. You can cancel anytime.
+        </p>
+      )}
     </div>
   );
 }

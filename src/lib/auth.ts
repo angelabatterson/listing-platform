@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, ne } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -35,6 +35,13 @@ export async function destroySession() {
   const token = jar.get(SESSION_COOKIE)?.value;
   if (token) await db.delete(sessions).where(eq(sessions.id, sha256Hex(token)));
   jar.delete(SESSION_COOKIE);
+}
+
+// After a password change, sign the user out everywhere except this browser.
+export async function endOtherSessions(userId: string) {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const keep = token ? sha256Hex(token) : "";
+  await db.delete(sessions).where(and(eq(sessions.userId, userId), ne(sessions.id, keep)));
 }
 
 // Cached per request, so layouts and pages can both call it cheaply.

@@ -66,7 +66,7 @@ Set `ANTHROPIC_API_KEY` (from console.anthropic.com). It uses Claude Opus 5.5 wi
 
 ## Subscriptions (Stripe)
 
-Billing is off until `STRIPE_SECRET_KEY` is set; until then every account has full use. Accounts listed in `BILLING_EXEMPT_EMAILS` (comma-separated) never need a plan.
+Billing is off until `STRIPE_SECRET_KEY` is set; until then every account has full use. Accounts whose email is in `BILLING_EXEMPT_EMAILS` (comma-separated) are on the Free unlimited plan: no charge and no limits. Sellers manage their account (name, business name, email, password) and billing from the menu under their name; the Billing page has a **Cancel subscription** link straight to Stripe's cancel confirmation.
 
 | Plan | Active listings | AI drafts a month |
 |---|---|---|

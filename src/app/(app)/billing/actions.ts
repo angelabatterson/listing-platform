@@ -33,6 +33,23 @@ export async function openBillingPortal() {
   redirect(await portalUrl(org.stripeCustomerId));
 }
 
+// Straight to Stripe's cancel confirmation. The plan keeps working until the end of
+// the period already paid for, and Stripe's webhook then marks it cancelled.
+export async function cancelSubscription() {
+  const { org } = await ownOrganization();
+  if (!billingEnabled() || !org.stripeCustomerId || !org.stripeSubscriptionId) redirect("/billing");
+  const session = await stripe().billingPortal.sessions.create({
+    customer: org.stripeCustomerId,
+    return_url: `${process.env.APP_URL}/billing`,
+    flow_data: {
+      type: "subscription_cancel",
+      subscription_cancel: { subscription: org.stripeSubscriptionId },
+      after_completion: { type: "redirect", redirect: { return_url: `${process.env.APP_URL}/billing?cancelled=1` } },
+    },
+  });
+  redirect(session.url);
+}
+
 export async function choosePlan(plan: string) {
   const { user, org } = await ownOrganization();
   if (!billingEnabled() || !isPlanKey(plan)) redirect("/billing");

@@ -113,6 +113,8 @@ export type StarterPolicyChoices = {
 
 const ALL_CATEGORIES = [{ name: "ALL_EXCLUDING_MOTORS_VEHICLES" }];
 
+const SHIPPING_SERVICES = ["USPSGroundAdvantage", "USPSPriority", "USPSParcel"];
+
 // Starter shipping, payment and return policies, for sellers who have none yet (and for
 // eBay's sandbox, whose policy pages don't exist). Sellers can change them on eBay later.
 // A policy with the same name is reused, so pressing the button twice doesn't fail.
@@ -137,24 +139,34 @@ export async function createStarterPolicies(connection: Connection, choices: Sta
   };
 
   const free = choices.shippingCents === 0;
-  const fulfillmentPolicyId = await create("fulfillment", "Relistic shipping", {
-    handlingTime: { value: choices.handlingDays, unit: "DAY" },
-    shippingOptions: [
-      {
-        optionType: "DOMESTIC",
-        costType: "FLAT_RATE",
-        shippingServices: [
+  // eBay's sandbox doesn't know Ground Advantage yet, so fall back to older USPS services.
+  let fulfillmentPolicyId: string | undefined;
+  for (const [i, serviceCode] of SHIPPING_SERVICES.entries()) {
+    try {
+      fulfillmentPolicyId = await create("fulfillment", "Relistic shipping", {
+        handlingTime: { value: choices.handlingDays, unit: "DAY" },
+        shippingOptions: [
           {
-            sortOrder: 1,
-            shippingCarrierCode: "USPS",
-            shippingServiceCode: "USPSGroundAdvantage",
-            freeShipping: free,
-            shippingCost: { value: formatPrice(choices.shippingCents), currency: "USD" },
+            optionType: "DOMESTIC",
+            costType: "FLAT_RATE",
+            shippingServices: [
+              {
+                sortOrder: 1,
+                shippingCarrierCode: "USPS",
+                shippingServiceCode: serviceCode,
+                freeShipping: free,
+                shippingCost: { value: formatPrice(choices.shippingCents), currency: "USD" },
+              },
+            ],
           },
         ],
-      },
-    ],
-  });
+      });
+      break;
+    } catch (err) {
+      const badService = err instanceof EbayApiError && /shipping service/i.test(err.message);
+      if (!badService || i === SHIPPING_SERVICES.length - 1) throw err;
+    }
+  }
   const paymentPolicyId = await create("payment", "Relistic payment", { immediatePay: true });
   const returnPolicyId = await create(
     "return",
@@ -168,7 +180,7 @@ export async function createStarterPolicies(connection: Connection, choices: Sta
         }
       : { returnsAccepted: false },
   );
-  return { fulfillmentPolicyId, paymentPolicyId, returnPolicyId };
+  return { fulfillmentPolicyId: fulfillmentPolicyId!, paymentPolicyId, returnPolicyId };
 }
 
 // Business policies are required by the Inventory API. Opting in is idempotent.

@@ -29,7 +29,7 @@ export function EbayStarterPolicies(props: {
         <div>
           <label className="label" htmlFor="shipping">Shipping charge (USD)</label>
           <input id="shipping" name="shipping" type="number" min="0" step="0.01" defaultValue="0" className="input" />
-          <p className="mt-1 text-xs text-zinc-500">0 means free shipping. Sent by USPS Ground Advantage.</p>
+          <p className="mt-1 text-xs text-zinc-500">0 means free shipping. Sent by USPS.</p>
         </div>
         <div>
           <label className="label" htmlFor="handlingDays">Ships within</label>

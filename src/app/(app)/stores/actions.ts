@@ -6,6 +6,9 @@ import { z } from "zod";
 import { db } from "@/db";
 import { connections } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { getAccess, usage } from "@/lib/billing/access";
+import { inactiveMessage } from "@/lib/billing/plans";
+import { importPage, isImportable, type ImportCounts } from "@/lib/import";
 import { ensureEbayLocation } from "@/lib/marketplaces/ebay/adapter";
 import { isExtensionMarketplace, type ExtensionMarketplace } from "@/lib/marketplaces/labels";
 
@@ -98,4 +101,28 @@ export async function saveEtsySettings(
     .where(eq(connections.id, connection.id));
   revalidatePath("/stores");
   return { saved: true };
+}
+
+export type ImportStep = { error?: string; counts?: ImportCounts; total?: number; done?: boolean };
+
+// Import one page of a store's live listings. The Stores page calls this page by page
+// so a big shop shows progress and no single request runs too long.
+export async function importStorePage(connectionId: string, page: number): Promise<ImportStep> {
+  const user = await requireUser();
+  const connection = await db.query.connections.findFirst({
+    where: and(eq(connections.id, connectionId), eq(connections.organizationId, user.organizationId)),
+  });
+  if (!connection || !isImportable(connection.marketplace)) return { error: "Store not found" };
+  if (connection.status !== "active") return { error: "Reconnect this store first." };
+  const access = await getAccess(user);
+  if (!access.canWrite) return { error: inactiveMessage(access) };
+  const cap = access.limits.activeListings;
+  const room = cap === null ? null : Math.max(0, cap - (await usage(user.organizationId)).activeListings);
+  try {
+    const result = await importPage(connection, Math.max(1, Math.floor(page)), room);
+    if (result.done) revalidatePath("/items");
+    return result;
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "The store didn't answer. Try again." };
+  }
 }

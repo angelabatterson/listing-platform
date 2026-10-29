@@ -28,6 +28,8 @@ export function validateForEtsy(
 }
 
 // The listing details shared by createDraftListing and updateListing (form-encoded).
+// Shipping and returns are only set when the listing is created, so updating a listing
+// imported from Etsy keeps the profiles the seller chose there.
 export function toListingFields(item: ItemWithImages, listing: ChannelListing, settings: EtsyConnectionSettings) {
   return {
     title: (listing.overrides.title || item.title).slice(0, ETSY_TITLE_MAX),
@@ -35,8 +37,6 @@ export function toListingFields(item: ItemWithImages, listing: ChannelListing, s
     who_made: settings.whoMade ?? "someone_else",
     when_made: listing.overrides.whenMade,
     taxonomy_id: listing.overrides.categoryId,
-    shipping_profile_id: settings.shippingProfileId,
-    return_policy_id: settings.returnPolicyId,
     type: "physical",
   };
 }
@@ -44,6 +44,8 @@ export function toListingFields(item: ItemWithImages, listing: ChannelListing, s
 export function toDraftListing(item: ItemWithImages, listing: ChannelListing, settings: EtsyConnectionSettings) {
   return {
     ...toListingFields(item, listing, settings),
+    shipping_profile_id: settings.shippingProfileId,
+    return_policy_id: settings.returnPolicyId,
     quantity: item.quantity,
     price: listingPrice(item, listing),
     readiness_state_id: settings.readinessStateId,

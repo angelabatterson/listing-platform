@@ -107,6 +107,12 @@ Sellers connect the extension from the Stores page. To try it locally, open
 `extension/` folder. The cPanel package serves a zip of the extension at
 `/relistic-extension.zip`.
 
+## Importing existing listings
+
+On the Stores page, a connected eBay or Etsy store has an **Import my listings** button. It reads the store's live listings a page at a time (`src/lib/import.ts`) and adds each one to Inventory, already linked to its listing. A listing whose SKU or title matches an item already in Relistic is linked to that item instead of copied, and running the import again skips listings imported before. Listings with variations are skipped for now, and new active items stop at the plan's listing limit.
+
+eBay listings made on eBay's own website aren't visible to the Inventory API, so they're read and managed through eBay's XML Trading API (`src/lib/marketplaces/ebay/trading.ts`). For those listings Relistic syncs only price and quantity, ends them when the item sells elsewhere, and relists them if it comes back. Their title, photos and description stay as they are on eBay.
+
 ## Scheduled sales check
 
 `vercel.json` runs `/api/cron/check-sales` every 5 minutes on Vercel (this needs a paid Vercel plan; the free plan runs crons once a day). Set `CRON_SECRET`; Vercel sends it automatically. Anywhere else, call the endpoint on a schedule with `Authorization: Bearer $CRON_SECRET`.

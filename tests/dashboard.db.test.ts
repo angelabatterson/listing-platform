@@ -10,7 +10,7 @@ vi.mock("@/lib/auth", async (original) => ({
   ...(await original<typeof import("@/lib/auth")>()),
   requireUser: async () => user,
 }));
-const { saveBuyerNote } = await import("@/app/(app)/buyers/actions");
+const { saveBuyerNote } = await import("@/app/(app)/crm/actions");
 
 const now = new Date("2026-10-20T12:00:00Z");
 const daysAgo = (n: number) => new Date(now.getTime() - n * 86_400_000);

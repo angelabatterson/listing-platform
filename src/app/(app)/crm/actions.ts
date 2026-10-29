@@ -24,5 +24,5 @@ export async function saveBuyerNote(formData: FormData) {
       target: [buyerNotes.organizationId, buyerNotes.marketplace, buyerNotes.buyerId],
       set: { note, updatedAt: new Date() },
     });
-  revalidatePath("/buyers");
+  revalidatePath("/crm");
 }

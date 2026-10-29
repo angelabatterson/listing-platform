@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-// The menu under the signed-in user's name: account settings, billing and log out.
+// The menu under the signed-in user's name: stores, shipping, account settings, billing and log out.
 export function AccountMenu(props: { label: string; email: string; logout: () => Promise<void> }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -44,7 +44,9 @@ export function AccountMenu(props: { label: string; email: string; logout: () =>
       {open && (
         <div role="menu" className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-md border border-zinc-200 bg-white shadow-lg">
           <p className="truncate border-b border-zinc-100 px-4 py-2 text-xs text-zinc-500">{props.email}</p>
-          <Link href="/account" role="menuitem" className={item} onClick={close}>Account settings</Link>
+          <Link href="/stores" role="menuitem" className={item} onClick={close}>Stores</Link>
+          <Link href="/shipping" role="menuitem" className={item} onClick={close}>Shipping</Link>
+          <Link href="/account" role="menuitem" className={`${item} border-t border-zinc-100`} onClick={close}>Account settings</Link>
           <Link href="/billing" role="menuitem" className={item} onClick={close}>Billing</Link>
           <form action={props.logout} className="border-t border-zinc-100">
             <button role="menuitem" className={item}>Log out</button>

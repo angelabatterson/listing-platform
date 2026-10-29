@@ -9,7 +9,7 @@ import { requireUser } from "@/lib/auth";
 import { getAccess, usage } from "@/lib/billing/access";
 import { inactiveMessage } from "@/lib/billing/plans";
 import { importPage, isImportable, type ImportCounts } from "@/lib/import";
-import { ensureEbayLocation } from "@/lib/marketplaces/ebay/adapter";
+import { createStarterPolicies, ensureEbayLocation, optInToBusinessPolicies } from "@/lib/marketplaces/ebay/adapter";
 import { isExtensionMarketplace, type ExtensionMarketplace } from "@/lib/marketplaces/labels";
 
 export type StoreSettingsState = { error?: string; saved?: boolean } | undefined;
@@ -45,6 +45,44 @@ export async function saveEbaySettings(
       .where(eq(connections.id, connection.id));
   } catch (err) {
     return { error: err instanceof Error ? err.message : "eBay rejected the location" };
+  }
+  revalidatePath("/stores");
+  return { saved: true };
+}
+
+const starterPoliciesSchema = z.object({
+  shipping: z.coerce.number().min(0, "Enter a shipping charge, or 0 for free shipping").max(500),
+  handlingDays: z.coerce.number().int().min(0).max(30),
+  returnDays: z.enum(["0", "30", "60"]),
+});
+
+// Make the shipping, payment and return policies eBay requires, and pick them.
+export async function createEbayStarterPolicies(
+  connectionId: string,
+  _prev: StoreSettingsState,
+  formData: FormData,
+): Promise<StoreSettingsState> {
+  const user = await requireUser();
+  const parsed = starterPoliciesSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const connection = await db.query.connections.findFirst({
+    where: and(eq(connections.id, connectionId), eq(connections.organizationId, user.organizationId)),
+  });
+  if (!connection || connection.marketplace !== "ebay") return { error: "Store not found" };
+
+  try {
+    await optInToBusinessPolicies(connection);
+    const ids = await createStarterPolicies(connection, {
+      shippingCents: Math.round(parsed.data.shipping * 100),
+      handlingDays: parsed.data.handlingDays,
+      returnDays: Number(parsed.data.returnDays) as 0 | 30 | 60,
+    });
+    await db
+      .update(connections)
+      .set({ settings: { ...connection.settings, ...ids } })
+      .where(eq(connections.id, connection.id));
+  } catch (err) {
+    return { error: err instanceof Error ? `eBay said: ${err.message}` : "eBay didn't accept the policies. Try again." };
   }
   revalidatePath("/stores");
   return { saved: true };

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ebayAdapter } from "@/lib/marketplaces/ebay/adapter";
+import { createStarterPolicies, ebayAdapter } from "@/lib/marketplaces/ebay/adapter";
 import { toInventoryItem, toOffer, validateForEbay } from "@/lib/marketplaces/ebay/mapping";
 import { buildAuthorizeUrl } from "@/lib/marketplaces/ebay/oauth";
 import { fetchEbaySales, orderToSales } from "@/lib/marketplaces/ebay/orders";
@@ -60,6 +60,34 @@ describe("eBay adapter", () => {
     );
     return calls;
   }
+
+  it("creates starter policies, reusing one Relistic made before", async () => {
+    const bodies: Record<string, unknown> = {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: URL, init: RequestInit) => {
+        const key = `${init.method} ${url.pathname}`;
+        if (init.body) bodies[key] = JSON.parse(String(init.body));
+        const list = (kind: string, items: object[]) => Response.json({ [`${kind}Policies`]: items });
+        if (key === "GET /sell/account/v1/fulfillment_policy") return list("fulfillment", []);
+        if (key === "GET /sell/account/v1/payment_policy") return list("payment", [{ paymentPolicyId: "P9", name: "Relistic payment" }]);
+        if (key === "GET /sell/account/v1/return_policy") return list("return", []);
+        if (key === "POST /sell/account/v1/fulfillment_policy") return Response.json({ fulfillmentPolicyId: "F1" }, { status: 201 });
+        if (key === "PUT /sell/account/v1/payment_policy/P9") return Response.json({ paymentPolicyId: "P9" });
+        if (key === "POST /sell/account/v1/return_policy") return Response.json({ returnPolicyId: "R1" }, { status: 201 });
+        throw new Error(`Unexpected request: ${key}`);
+      }),
+    );
+    const ids = await createStarterPolicies(makeConnection(), { shippingCents: 0, handlingDays: 1, returnDays: 0 });
+    expect(ids).toEqual({ fulfillmentPolicyId: "F1", paymentPolicyId: "P9", returnPolicyId: "R1" });
+    expect(bodies["POST /sell/account/v1/fulfillment_policy"]).toMatchObject({
+      name: "Relistic shipping",
+      marketplaceId: "EBAY_US",
+      handlingTime: { value: 1, unit: "DAY" },
+      shippingOptions: [{ shippingServices: [{ shippingServiceCode: "USPSGroundAdvantage", freeShipping: true }] }],
+    });
+    expect(bodies["POST /sell/account/v1/return_policy"]).toMatchObject({ returnsAccepted: false });
+  });
 
   it("creates the inventory item, creates an offer, then publishes it", async () => {
     const calls = stubFetch({

@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { ConnectExtension } from "@/components/connect-extension";
 import { EbaySettingsForm } from "@/components/ebay-settings-form";
+import { EbayStarterPolicies } from "@/components/ebay-starter-policies";
 import { EtsySettingsForm } from "@/components/etsy-settings-form";
 import { ImportListings } from "@/components/import-listings";
 import { db } from "@/db";
@@ -16,7 +17,7 @@ import { ebayEnvironment, ebayHosts, ebayIsConfigured } from "@/lib/marketplaces
 import { fetchEtsyShopOptions } from "@/lib/marketplaces/etsy/adapter";
 import { etsyIsConfigured } from "@/lib/marketplaces/etsy/config";
 import { isConnectionReady, storeLabel } from "@/lib/stores";
-import { addExtensionStore, disconnectStore, importStorePage, saveEbaySettings, saveEtsySettings } from "./actions";
+import { addExtensionStore, createEbayStarterPolicies, disconnectStore, importStorePage, saveEbaySettings, saveEtsySettings } from "./actions";
 
 const EXTENSION_SITES: Record<ExtensionMarketplace, string> = {
   poshmark: "https://poshmark.com",
@@ -227,15 +228,14 @@ export default async function StoresPage(props: PageProps<"/stores">) {
         {ebay && ebayPolicies?.data && (
           <>
             {Object.values(ebayPolicies.data).some((list) => list.length === 0) && (
-              <p className="mt-4 text-sm text-amber-700">
-                eBay needs a shipping, payment and return policy on your account.{" "}
-                <a href={ebayHosts().policies} target="_blank" rel="noreferrer" className="underline">
-                  Create them on eBay
-                </a>
-                , then reload this page.
-              </p>
+              <EbayStarterPolicies
+                action={createEbayStarterPolicies.bind(null, ebay.id)}
+                policiesUrl={ebayEnvironment() === "production" ? ebayHosts().policies : undefined}
+              />
             )}
             <EbaySettingsForm
+              // Remount when the chosen policies change, e.g. after creating starter ones.
+              key={[ebay.settings.fulfillmentPolicyId, ebay.settings.paymentPolicyId, ebay.settings.returnPolicyId].join()}
               action={saveEbaySettings.bind(null, ebay.id)}
               policies={ebayPolicies.data}
               settings={ebay.settings}

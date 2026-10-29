@@ -253,7 +253,7 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
         <section>
           <div className="mb-3 flex items-baseline justify-between">
             <h2 className="text-lg font-semibold">Top buyers</h2>
-            <Link href="/buyers" className="text-sm underline">All buyers</Link>
+            <Link href="/crm" className="text-sm underline">All buyers in CRM</Link>
           </div>
           {topBuyers.length === 0 ? (
             <p className="text-sm text-zinc-600">Buyers show up here after your first sale.</p>

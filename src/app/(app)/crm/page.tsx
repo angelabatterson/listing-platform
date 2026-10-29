@@ -8,7 +8,7 @@ import { buyerPurchases, buyers } from "@/lib/dashboard";
 import { MARKETPLACE_LABELS } from "@/lib/marketplaces/labels";
 import { saveBuyerNote } from "./actions";
 
-export default async function BuyersPage() {
+export default async function CrmPage() {
   const user = await requireUser();
   const org = user.organizationId;
   const [list, purchases, notes] = await Promise.all([
@@ -24,7 +24,7 @@ export default async function BuyersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Buyers</h1>
+        <h1 className="text-2xl font-semibold">CRM</h1>
         <p className="mt-1 text-sm text-zinc-600">
           Everyone who has bought from your stores, biggest spenders first
           {list.length > 0 && `. ${repeat} of ${list.length} have come back for more`}. Notes are only seen by you.

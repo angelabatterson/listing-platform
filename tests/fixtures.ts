@@ -10,6 +10,7 @@ export function makeItem(overrides: Partial<ItemWithImages> = {}): ItemWithImage
     title: "Vintage denim jacket",
     description: "Lightly worn, size M.",
     priceCents: 4550,
+    costCents: null,
     currency: "USD",
     quantity: 1,
     condition: "USED_GOOD",

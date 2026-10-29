@@ -7,6 +7,7 @@ import { getAccess } from "@/lib/billing/access";
 import { daysLeft, inactiveMessage, type Access } from "@/lib/billing/plans";
 
 const nav = [
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/items", label: "Inventory" },
   { href: "/batches", label: "Photo batches" },
   { href: "/stores", label: "Stores" },
@@ -44,14 +45,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex flex-1 flex-col">
       <header className="border-b border-zinc-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center gap-6 px-6 py-3">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3">
           <Link href="/items" className="flex items-center gap-2 font-semibold">
             <LogoMark className="h-6 w-6" />
             Relistic
           </Link>
-          <nav className="flex gap-4 text-sm">
+          <nav className="order-last flex w-full gap-4 overflow-x-auto text-sm md:order-none md:w-auto">
             {nav.map((n) => (
-              <Link key={n.href} href={n.href} className="text-zinc-600 hover:text-zinc-900">{n.label}</Link>
+              <Link key={n.href} href={n.href} className="whitespace-nowrap text-zinc-600 hover:text-zinc-900">{n.label}</Link>
             ))}
           </nav>
           <div className="ml-auto">

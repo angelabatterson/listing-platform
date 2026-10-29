@@ -166,6 +166,8 @@ export const items = pgTable(
     title: text("title").notNull(),
     description: text("description").notNull().default(""),
     priceCents: integer("price_cents").notNull(),
+    // What the seller paid for it, for profit on the dashboard. Optional.
+    costCents: integer("cost_cents"),
     currency: text("currency").notNull().default("USD"),
     quantity: integer("quantity").notNull().default(1),
     condition: text("condition").notNull().default("USED_GOOD"),
@@ -273,11 +275,40 @@ export const sales = pgTable(
     externalOrderId: text("external_order_id").notNull(),
     externalLineId: text("external_line_id").notNull(),
     sku: text("sku"),
+    title: text("title"),
     quantity: integer("quantity").notNull(),
     soldAt: timestamp("sold_at", { withTimezone: true }).notNull(),
+    // Money for the whole line, as the store reported it; null when it didn't.
+    currency: text("currency"),
+    priceCents: integer("price_cents"),
+    shippingCents: integer("shipping_cents"),
+    feesCents: integer("fees_cents"),
+    feesEstimated: boolean("fees_estimated").notNull().default(false),
+    // The store's id for the buyer (eBay username, Etsy user id), for repeat buyers.
+    buyerId: text("buyer_id"),
+    buyerName: text("buyer_name"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("sales_connection_line").on(t.connectionId, t.externalLineId)],
+  (t) => [
+    uniqueIndex("sales_connection_line").on(t.connectionId, t.externalLineId),
+    index("sales_org_sold").on(t.organizationId, t.soldAt),
+  ],
+);
+
+// The seller's own note about a buyer, keyed the same way the buyer list groups sales.
+export const buyerNotes = pgTable(
+  "buyer_notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    marketplace: marketplaceEnum("marketplace").notNull(),
+    buyerId: text("buyer_id").notNull(),
+    note: text("note").notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("buyer_notes_org_buyer").on(t.organizationId, t.marketplace, t.buyerId)],
 );
 
 // One row per AI-written draft, counted against the plan's monthly allowance.

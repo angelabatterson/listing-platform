@@ -47,8 +47,16 @@ export async function recordSales(connection: Connection, lines: SaleLine[]): Pr
         externalOrderId: line.orderId,
         externalLineId: line.lineId,
         sku: line.sku,
+        title: line.title ?? null,
         quantity: line.quantity,
         soldAt: line.soldAt,
+        currency: line.currency ?? null,
+        priceCents: line.priceCents ?? null,
+        shippingCents: line.shippingCents ?? null,
+        feesCents: line.feesCents ?? null,
+        feesEstimated: line.feesEstimated ?? false,
+        buyerId: line.buyerId ?? null,
+        buyerName: line.buyerName ?? null,
       })
       .onConflictDoNothing()
       .returning({ id: sales.id });

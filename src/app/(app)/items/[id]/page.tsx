@@ -80,6 +80,7 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
           sku: item.sku,
           description: item.description,
           price: formatPrice(item.priceCents),
+          cost: item.costCents === null ? "" : formatPrice(item.costCents),
           quantity: item.quantity,
           condition: item.condition,
           brand: item.brand ?? "",

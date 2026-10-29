@@ -9,6 +9,7 @@ import { channelListings, connections, itemImages, items } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { listingProblem, writeProblem } from "@/lib/billing/access";
 import { parseSpecifics } from "@/lib/specifics";
+import { parseTags } from "@/lib/tags";
 import { syncItem } from "@/lib/sync/run";
 
 export type ItemFormState = { error?: string } | undefined;
@@ -33,6 +34,7 @@ const itemSchema = z.object({
   quantity: z.coerce.number().int().min(0, "Quantity can't be negative"),
   condition: z.string().min(1),
   brand: z.string().trim().optional(),
+  tags: z.string().default(""),
   status: z.enum(["draft", "active"]),
   imageUrls: z.string().default(""),
   specifics: z.string().default(""),
@@ -60,6 +62,7 @@ export async function saveItem(
     quantity: data.quantity,
     condition: data.condition,
     brand: data.brand || null,
+    tags: parseTags(data.tags),
     attributes: parseSpecifics(data.specifics),
     status: data.status,
   };

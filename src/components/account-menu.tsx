@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 // The menu under the signed-in user's name: stores, shipping, account settings, billing and log out.
-export function AccountMenu(props: { label: string; email: string; logout: () => Promise<void> }) {
+// `up` opens the menu above the button, for the bottom of the side bar.
+export function AccountMenu(props: { label: string; email: string; logout: () => Promise<void>; up?: boolean }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const close = () => setOpen(false);
@@ -34,15 +35,15 @@ export function AccountMenu(props: { label: string; email: string; logout: () =>
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="flex items-center gap-1 text-sm text-zinc-600 hover:text-zinc-900"
+        className="flex max-w-full items-center gap-1 text-sm text-zinc-600 hover:text-zinc-900"
       >
-        {props.label}
-        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-4 w-4">
+        <span className="truncate">{props.label}</span>
+        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-4 w-4 shrink-0">
           <path d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4Z" />
         </svg>
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-md border border-zinc-200 bg-white shadow-lg">
+        <div role="menu" className={`absolute z-20 w-56 ${props.up ? "bottom-full left-0 mb-2" : "left-0 mt-2"} overflow-hidden rounded-md border border-zinc-200 bg-white shadow-lg`}>
           <p className="truncate border-b border-zinc-100 px-4 py-2 text-xs text-zinc-500">{props.email}</p>
           <Link href="/stores" role="menuitem" className={item} onClick={close}>Stores</Link>
           <Link href="/shipping" role="menuitem" className={item} onClick={close}>Shipping</Link>

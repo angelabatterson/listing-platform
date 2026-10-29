@@ -17,6 +17,7 @@ export type ItemFormValues = {
   quantity: number;
   condition: string;
   brand: string;
+  tags: string;
   status: "draft" | "active";
   imageUrls: string;
   specifics: string;
@@ -70,6 +71,11 @@ export function ItemForm(props: {
         <div>
           <label className="label" htmlFor="brand">Brand</label>
           <input id="brand" name="brand" className="input" defaultValue={v.brand} />
+        </div>
+        <div>
+          <label className="label" htmlFor="tags">Tags (optional)</label>
+          <input id="tags" name="tags" className="input" defaultValue={v.tags} placeholder="Bin 4, Women's denim" />
+          <p className="mt-1 text-xs text-zinc-500">Your own groups, separated by commas. Only you see them.</p>
         </div>
         <div>
           <label className="label" htmlFor="price">Price (USD)</label>

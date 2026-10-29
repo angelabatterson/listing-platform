@@ -177,6 +177,8 @@ export const items = pgTable(
     quantity: integer("quantity").notNull().default(1),
     condition: text("condition").notNull().default("USED_GOOD"),
     brand: text("brand"),
+    // The seller's own groups for the item, like "Bin 4" or "Consignor: Jane".
+    tags: text("tags").array().notNull().default([]),
     attributes: jsonb("attributes").$type<ItemAttributes>().default({}).notNull(),
     status: itemStatusEnum("status").default("draft").notNull(),
     batchId: uuid("batch_id").references(() => batches.id, { onDelete: "set null" }),

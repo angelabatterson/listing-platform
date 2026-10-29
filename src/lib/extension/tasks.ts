@@ -36,11 +36,13 @@ export function fingerprint(content: ListingContent): string {
 const MIN_PRICE_CENTS: Record<Connection["marketplace"], number> = {
   ebay: 0,
   etsy: 0,
+  shopify: 0,
   poshmark: 300,
   depop: 100,
   facebook: 100,
   mercari: 100,
   whatnot: 100,
+  grailed: 100,
 };
 
 const MAX_TITLE: Partial<Record<Connection["marketplace"], number>> = { poshmark: 80, facebook: 100, mercari: 80 };

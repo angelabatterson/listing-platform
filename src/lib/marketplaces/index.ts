@@ -1,6 +1,7 @@
 import type { Connection } from "@/db/schema";
 import { ebayAdapter } from "./ebay/adapter";
 import { etsyAdapter } from "./etsy/adapter";
+import { shopifyAdapter } from "./shopify/adapter";
 import type { MarketplaceAdapter } from "./types";
 import { validateForExtension } from "@/lib/extension/tasks";
 
@@ -19,11 +20,13 @@ const extensionAdapter: MarketplaceAdapter = {
 const adapters: Record<Connection["marketplace"], MarketplaceAdapter> = {
   ebay: ebayAdapter,
   etsy: etsyAdapter,
+  shopify: shopifyAdapter,
   poshmark: extensionAdapter,
   depop: extensionAdapter,
   facebook: extensionAdapter,
   mercari: extensionAdapter,
   whatnot: extensionAdapter,
+  grailed: extensionAdapter,
 };
 
 export function adapterFor(marketplace: Connection["marketplace"]): MarketplaceAdapter {

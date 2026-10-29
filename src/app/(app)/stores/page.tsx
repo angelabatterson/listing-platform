@@ -16,6 +16,7 @@ import { fetchEbayPolicies } from "@/lib/marketplaces/ebay/adapter";
 import { ebayEnvironment, ebayHosts, ebayIsConfigured } from "@/lib/marketplaces/ebay/config";
 import { fetchEtsyShopOptions } from "@/lib/marketplaces/etsy/adapter";
 import { etsyIsConfigured } from "@/lib/marketplaces/etsy/config";
+import { shopifyIsConfigured } from "@/lib/marketplaces/shopify/config";
 import { isConnectionReady, storeLabel } from "@/lib/stores";
 import { addExtensionStore, createEbayStarterPolicies, disconnectStore, importStorePage, saveEbaySettings, saveEtsySettings } from "./actions";
 
@@ -25,6 +26,7 @@ const EXTENSION_SITES: Record<ExtensionMarketplace, string> = {
   facebook: "https://www.facebook.com/marketplace",
   mercari: "https://www.mercari.com",
   whatnot: "https://www.whatnot.com",
+  grailed: "https://www.grailed.com",
 };
 
 function ago(date: Date): string {
@@ -50,7 +52,7 @@ async function ExtensionStores(props: { organizationId: string; conns: Connectio
   return (
     <section className="card space-y-5">
       <div>
-        <h2 className="text-lg font-semibold">Poshmark, Depop, Mercari, Facebook Marketplace and Whatnot</h2>
+        <h2 className="text-lg font-semibold">Poshmark, Depop, Mercari, Grailed, Facebook Marketplace and Whatnot</h2>
         <p className="mt-1 text-sm text-zinc-600">
           These stores don&apos;t let other apps post for you, so Relistic works through a Chrome extension in your own
           browser. It opens the store&apos;s listing page and fills in the photos, title, description and price. You
@@ -135,6 +137,11 @@ const errors: Record<string, string> = {
   etsy_declined: "Etsy didn't grant access. Try connecting again and choose Allow Access.",
   etsy_state: "That Etsy sign-in expired or didn't match. Please try again.",
   etsy_no_shop: "That Etsy account doesn't have a shop yet. Open a shop on Etsy, then connect again.",
+  shopify_shop:
+    "Enter your store's Shopify address, like mystore.myshopify.com. You'll find it in Shopify under Settings, then Domains.",
+  shopify_declined: "Shopify didn't grant access. Try connecting again and choose Install.",
+  shopify_state: "That Shopify sign-in expired or didn't match. Please try again.",
+  shopify_no_location: "Relistic couldn't find a location on your Shopify store to keep stock at. Add one in Shopify under Settings, then Locations, and connect again.",
 };
 
 async function load<T>(fn: () => Promise<T>): Promise<{ data?: T; error?: string }> {
@@ -170,7 +177,19 @@ function StoreHeader(props: {
         </p>
       </div>
       <div className="flex gap-2">
-        {props.configured ? (
+        {props.configured && marketplace === "shopify" ? (
+          <form action="/api/shopify/oauth/start" className="flex flex-wrap items-center gap-2">
+            <input
+              name="shop"
+              className="input w-56"
+              placeholder="mystore.myshopify.com"
+              aria-label="Your Shopify store address"
+              defaultValue={connection?.settings.shopDomain}
+              required
+            />
+            <button className={connection ? "btn-secondary" : "btn"}>{connection ? "Reconnect" : `Connect ${name}`}</button>
+          </form>
+        ) : props.configured ? (
           <a href={`/api/${marketplace}/oauth/start`} className={connection ? "btn-secondary" : "btn"}>
             {connection ? "Reconnect" : `Connect ${name}`}
           </a>
@@ -196,6 +215,7 @@ export default async function StoresPage(props: PageProps<"/stores">) {
   const live = (m: Connection["marketplace"]) => conns.find((c) => c.marketplace === m && c.status !== "disconnected");
   const ebay = live("ebay");
   const etsy = live("etsy");
+  const shopify = live("shopify");
   const [ebayPolicies, etsyOptions, ebayImported, etsyImported] = await Promise.all([
     ebay ? load(() => fetchEbayPolicies(ebay)) : undefined,
     etsy?.settings.shopId ? load(() => fetchEtsyShopOptions(etsy)) : undefined,
@@ -209,9 +229,11 @@ export default async function StoresPage(props: PageProps<"/stores">) {
       {typeof error === "string" && errors[error] && (
         <p className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-800">{errors[error]}</p>
       )}
-      {(connected === "ebay" || connected === "etsy") && (
+      {(connected === "ebay" || connected === "etsy" || connected === "shopify") && (
         <p className="rounded-md bg-green-50 px-4 py-2 text-sm text-green-800">
-          {MARKETPLACE_LABELS[connected]} connected. Finish the settings below so items can be listed.
+          {connected === "shopify"
+            ? "Shopify connected. Tick it on an item to list it there."
+            : `${MARKETPLACE_LABELS[connected]} connected. Finish the settings below so items can be listed.`}
         </p>
       )}
 
@@ -278,6 +300,14 @@ export default async function StoresPage(props: PageProps<"/stores">) {
         {etsy?.status === "active" && etsy.settings.shopId && (
           <ImportListings store="Etsy" imported={etsyImported} run={importStorePage.bind(null, etsy.id)} />
         )}
+      </section>
+
+      <section className="card">
+        <StoreHeader connection={shopify} marketplace="shopify" configured={shopifyIsConfigured()} />
+        <p className="mt-3 text-sm text-zinc-600">
+          Items you list on Shopify become products in your store, with their photos, price and quantity. When one
+          sells somewhere else, Relistic lowers its stock, or hides it as a draft when none are left.
+        </p>
       </section>
 
       <ExtensionStores organizationId={user.organizationId} conns={conns} />

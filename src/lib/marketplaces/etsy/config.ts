@@ -1,7 +1,7 @@
 export const ETSY_API = "https://api.etsy.com";
 export const ETSY_AUTHORIZE_URL = "https://www.etsy.com/oauth/connect";
 
-export const ETSY_SCOPES = ["listings_r", "listings_w", "listings_d", "shops_r", "transactions_r"];
+export const ETSY_SCOPES = ["listings_r", "listings_w", "listings_d", "shops_r", "transactions_r", "transactions_w"];
 
 export const ETSY_STATE_COOKIE = "lp_etsy_oauth";
 

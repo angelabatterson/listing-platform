@@ -311,6 +311,65 @@ export const buyerNotes = pgTable(
   (t) => [uniqueIndex("buyer_notes_org_buyer").on(t.organizationId, t.marketplace, t.buyerId)],
 );
 
+export type PostalAddress = {
+  name: string;
+  company?: string;
+  street1: string;
+  street2?: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  phone?: string;
+  email?: string;
+};
+
+export type ParcelSize = { lengthIn: number; widthIn: number; heightIn: number; weightOz: number };
+
+// The account's label-buying setup: its own Shippo key (encrypted), where parcels
+// ship from, and the usual box. Each seller pays Shippo for their own postage.
+export const shippingSettings = pgTable("shipping_settings", {
+  organizationId: uuid("organization_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull().default("shippo"),
+  apiTokenEnc: text("api_token_enc"),
+  testMode: boolean("test_mode").notNull().default(false),
+  fromAddress: jsonb("from_address").$type<PostalAddress>(),
+  defaultParcel: jsonb("default_parcel").$type<ParcelSize>(),
+  ...timestamps,
+});
+
+// A shipping label bought for one marketplace order.
+export const shippingLabels = pgTable(
+  "shipping_labels",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => connections.id, { onDelete: "cascade" }),
+    externalOrderId: text("external_order_id").notNull(),
+    provider: text("provider").notNull(),
+    providerLabelId: text("provider_label_id").notNull(),
+    carrier: text("carrier").notNull(),
+    service: text("service").notNull(),
+    costCents: integer("cost_cents").notNull(),
+    currency: text("currency").notNull().default("USD"),
+    trackingNumber: text("tracking_number"),
+    trackingUrl: text("tracking_url"),
+    labelUrl: text("label_url").notNull(),
+    testMode: boolean("test_mode").notNull().default(false),
+    // When the tracking number reached the store, or why it didn't.
+    trackingSentAt: timestamp("tracking_sent_at", { withTimezone: true }),
+    trackingError: text("tracking_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("shipping_labels_order").on(t.organizationId, t.connectionId, t.externalOrderId)],
+);
+
 // One row per AI-written draft, counted against the plan's monthly allowance.
 export const aiDrafts = pgTable(
   "ai_drafts",
@@ -350,6 +409,10 @@ export const channelListingsRelations = relations(channelListings, ({ one }) => 
     fields: [channelListings.connectionId],
     references: [connections.id],
   }),
+}));
+
+export const salesRelations = relations(sales, ({ one }) => ({
+  item: one(items, { fields: [sales.itemId], references: [items.id] }),
 }));
 
 export type Organization = typeof organizations.$inferSelect;

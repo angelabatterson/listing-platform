@@ -27,6 +27,7 @@ export default async function NewItemPage() {
           quantity: 1,
           condition: "USED_GOOD",
           brand: "",
+          tags: "",
           status: "active",
           imageUrls: "",
           specifics: "",

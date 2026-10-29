@@ -15,6 +15,7 @@ export function makeItem(overrides: Partial<ItemWithImages> = {}): ItemWithImage
     quantity: 1,
     condition: "USED_GOOD",
     brand: "Levi's",
+    tags: [],
     attributes: { Size: ["M"] },
     status: "active",
     batchId: null,

@@ -84,6 +84,12 @@ Limits are in `src/lib/billing/plans.ts`. Prices are set in Stripe, so they can 
 
 Choosing a plan during the free trial keeps the remaining trial days: the card is charged when the trial ends. When a payment fails the account keeps working while Stripe retries (`past_due`); once the subscription is cancelled or unpaid, the account can't post, edit or use the AI, but sales are still synced and its data is kept.
 
+## Shipping labels (Shippo)
+
+Each seller buys labels through their own Shippo account, so postage is billed to them by Shippo, not to Relistic. On the **Shipping** page a seller pastes their Shippo API token (stored encrypted), their ship-from address and their usual box. Orders from the last 30 days without a Relistic label are listed there; buying a label sends the tracking number to eBay (`createShippingFulfillment`) or Etsy (receipt tracking, which needs the `transactions_w` scope, so Etsy stores connected before it was added must reconnect). A `shippo_test_` token buys free sample labels and never sends tracking to a store.
+
+Buyer addresses are read from the store when a label is bought and aren't saved.
+
 ## Scheduled sales check
 
 `vercel.json` runs `/api/cron/check-sales` every 5 minutes on Vercel (this needs a paid Vercel plan; the free plan runs crons once a day). Set `CRON_SECRET`; Vercel sends it automatically. Anywhere else, call the endpoint on a schedule with `Authorization: Bearer $CRON_SECRET`.

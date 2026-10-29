@@ -10,6 +10,8 @@ type Field = {
   type?: string;
   autoComplete?: string;
   defaultValue?: string;
+  placeholder?: string;
+  step?: string;
   required?: boolean;
 };
 
@@ -47,6 +49,8 @@ export function SettingsForm(props: {
             type={f.type ?? "text"}
             autoComplete={f.autoComplete}
             defaultValue={f.defaultValue}
+            placeholder={f.placeholder}
+            step={f.step}
             required={f.required ?? true}
             className="input"
           />

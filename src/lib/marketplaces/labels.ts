@@ -8,10 +8,11 @@ export const MARKETPLACE_LABELS: Record<Connection["marketplace"], string> = {
   facebook: "Facebook Marketplace",
   mercari: "Mercari",
   whatnot: "Whatnot",
+  grailed: "Grailed",
 };
 
 // Stores worked through the Relistic Chrome extension rather than an API.
-export const EXTENSION_MARKETPLACES = ["poshmark", "depop", "mercari", "facebook", "whatnot"] as const;
+export const EXTENSION_MARKETPLACES = ["poshmark", "depop", "mercari", "grailed", "facebook", "whatnot"] as const;
 export type ExtensionMarketplace = (typeof EXTENSION_MARKETPLACES)[number];
 
 export function isExtensionMarketplace(m: Connection["marketplace"]): m is ExtensionMarketplace {

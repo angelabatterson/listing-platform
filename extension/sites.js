@@ -67,6 +67,18 @@ const RELISTIC_SITES = {
     },
     isFormPage: (url) => /^\/dashboard\/listings\/(new|[^/]+\/edit)/.test(url.pathname),
   },
+  grailed: {
+    name: "Grailed",
+    createUrl: "https://www.grailed.com/sell/new",
+    editUrl: (t) => (t.remoteListingId ? `https://www.grailed.com/listings/${t.remoteListingId}/edit` : t.remoteUrl),
+    maxPhotos: 20,
+    // https://www.grailed.com/listings/12345678-levis-denim-jacket
+    listingFromUrl(url) {
+      const m = url.pathname.match(/^\/listings\/(\d+)(?:-[^/]*)?\/?$/);
+      return m ? { remoteListingId: m[1], url: `https://www.grailed.com/listings/${m[1]}` } : null;
+    },
+    isFormPage: (url) => /^\/(sell\b|listings\/\d+\/edit)/.test(url.pathname),
+  },
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- read by background.js and popup.js

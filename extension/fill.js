@@ -64,6 +64,33 @@
       left: "category, format (Buy It Now or auction), quantity and shipping",
       post: "Publish",
     },
+    grailed: {
+      name: "Grailed",
+      // Grailed calls the brand the designer, and the title the item name.
+      fields: {
+        title: ["item name", "title"],
+        description: ["description"],
+        price: ["price"],
+        brand: ["designer"],
+      },
+      menus: {
+        condition: {
+          labels: ["condition"],
+          options: {
+            NEW: ["New/Never Worn", "New"],
+            NEW_OTHER: ["New/Never Worn", "New"],
+            NEW_WITH_DEFECTS: ["Gently Used"],
+            USED_EXCELLENT: ["Gently Used"],
+            USED_VERY_GOOD: ["Gently Used"],
+            USED_GOOD: ["Used"],
+            USED_ACCEPTABLE: ["Very Worn"],
+            FOR_PARTS_OR_NOT_WORKING: ["Very Worn"],
+          },
+        },
+      },
+      left: "department, category, size, color and shipping (and pick the designer from Grailed's list)",
+      post: "Publish",
+    },
   };
 
   const norm = (s) => (s || "").replace(/\s+/g, " ").trim().toLowerCase();

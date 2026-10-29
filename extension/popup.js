@@ -23,7 +23,7 @@ async function render() {
 
   if (!key) {
     main.append(
-      el("p", { textContent: "Connect this extension to your Relistic account to post to Poshmark, Depop, Mercari, Facebook Marketplace and Whatnot." }),
+      el("p", { textContent: "Connect this extension to your Relistic account to post to Poshmark, Depop, Mercari, Grailed, Facebook Marketplace and Whatnot." }),
       el("button", { textContent: "Open Relistic to connect", onclick: () => chrome.tabs.create({ url: `${app}/stores` }) }),
     );
     return;
@@ -31,7 +31,7 @@ async function render() {
 
   if (error) main.append(el("p", { className: "error", textContent: error }));
   if (tasks.length === 0) {
-    main.append(el("p", { textContent: "Nothing waiting. Tick Poshmark, Depop, Mercari, Facebook or Whatnot on an item in Relistic to list it there." }));
+    main.append(el("p", { textContent: "Nothing waiting. Tick Poshmark, Depop, Mercari, Grailed, Facebook or Whatnot on an item in Relistic to list it there." }));
   } else {
     const list = el("ul");
     for (const t of tasks) {

@@ -24,6 +24,7 @@ const adapters: Record<Connection["marketplace"], MarketplaceAdapter> = {
   facebook: extensionAdapter,
   mercari: extensionAdapter,
   whatnot: extensionAdapter,
+  grailed: extensionAdapter,
 };
 
 export function adapterFor(marketplace: Connection["marketplace"]): MarketplaceAdapter {

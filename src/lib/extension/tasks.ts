@@ -41,6 +41,7 @@ const MIN_PRICE_CENTS: Record<Connection["marketplace"], number> = {
   facebook: 100,
   mercari: 100,
   whatnot: 100,
+  grailed: 100,
 };
 
 const MAX_TITLE: Partial<Record<Connection["marketplace"], number>> = { poshmark: 80, facebook: 100, mercari: 80 };

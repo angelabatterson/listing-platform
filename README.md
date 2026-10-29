@@ -90,7 +90,7 @@ Each seller buys labels through their own Shippo account, so postage is billed t
 
 Buyer addresses are read from the store when a label is bought and aren't saved.
 
-## Poshmark, Depop, Mercari, Facebook Marketplace and Whatnot (Chrome extension)
+## Poshmark, Depop, Mercari, Grailed, Facebook Marketplace and Whatnot (Chrome extension)
 
 None of these has a public listing API for US sellers, so they're worked through the
 Relistic Chrome extension in `extension/`, in the seller's own signed-in browser.

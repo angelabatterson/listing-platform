@@ -15,7 +15,7 @@ import {
 
 // eBay and Etsy are reached through their APIs; the others through the Relistic
 // Chrome extension, working in the seller's own signed-in browser (see lib/extension).
-export const marketplaceEnum = pgEnum("marketplace", ["ebay", "etsy", "poshmark", "depop", "facebook", "mercari", "whatnot"]);
+export const marketplaceEnum = pgEnum("marketplace", ["ebay", "etsy", "poshmark", "depop", "facebook", "mercari", "whatnot", "grailed"]);
 
 export const connectionStatusEnum = pgEnum("connection_status", [
   "active",

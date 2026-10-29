@@ -23,11 +23,20 @@ export function listingTitle(item: ItemWithImages, listing: ChannelListing): str
   return (listing.overrides.title || item.title).slice(0, EBAY_TITLE_MAX);
 }
 
+// A listing imported from eBay that was made on eBay's own website. It has an eBay item
+// number but no Inventory API offer, so Relistic changes it through the Trading API.
+export function isWebsiteListing(listing: Pick<ChannelListing, "remoteListingId" | "remoteOfferId">): boolean {
+  return Boolean(listing.remoteListingId && !listing.remoteOfferId);
+}
+
 export function validateForEbay(
   item: ItemWithImages,
   listing: ChannelListing,
   settings: EbayConnectionSettings,
 ): string[] {
+  if (isWebsiteListing(listing)) {
+    return (listing.overrides.priceCents ?? item.priceCents) > 0 ? [] : ["Set a price above zero."];
+  }
   const problems: string[] = [];
   if (!listing.overrides.categoryId) problems.push("Choose an eBay category for this item.");
   if (item.images.length === 0) problems.push("Add at least one photo.");

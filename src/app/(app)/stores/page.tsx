@@ -2,19 +2,21 @@ import { desc, eq } from "drizzle-orm";
 import { ConnectExtension } from "@/components/connect-extension";
 import { EbaySettingsForm } from "@/components/ebay-settings-form";
 import { EtsySettingsForm } from "@/components/etsy-settings-form";
+import { ImportListings } from "@/components/import-listings";
 import { db } from "@/db";
 import { connections, extensionKeys, type Connection } from "@/db/schema";
 import { newExtensionKey } from "@/app/(app)/extension/actions";
 import { openTaskCounts } from "@/lib/extension/tasks";
 import { EXTENSION_MARKETPLACES, type ExtensionMarketplace } from "@/lib/marketplaces/labels";
 import { requireUser } from "@/lib/auth";
+import { importedCount } from "@/lib/import";
 import { MARKETPLACE_LABELS } from "@/lib/marketplaces";
 import { fetchEbayPolicies } from "@/lib/marketplaces/ebay/adapter";
 import { ebayEnvironment, ebayHosts, ebayIsConfigured } from "@/lib/marketplaces/ebay/config";
 import { fetchEtsyShopOptions } from "@/lib/marketplaces/etsy/adapter";
 import { etsyIsConfigured } from "@/lib/marketplaces/etsy/config";
 import { isConnectionReady, storeLabel } from "@/lib/stores";
-import { addExtensionStore, disconnectStore, saveEbaySettings, saveEtsySettings } from "./actions";
+import { addExtensionStore, disconnectStore, importStorePage, saveEbaySettings, saveEtsySettings } from "./actions";
 
 const EXTENSION_SITES: Record<ExtensionMarketplace, string> = {
   poshmark: "https://poshmark.com",
@@ -193,9 +195,11 @@ export default async function StoresPage(props: PageProps<"/stores">) {
   const live = (m: Connection["marketplace"]) => conns.find((c) => c.marketplace === m && c.status !== "disconnected");
   const ebay = live("ebay");
   const etsy = live("etsy");
-  const [ebayPolicies, etsyOptions] = await Promise.all([
+  const [ebayPolicies, etsyOptions, ebayImported, etsyImported] = await Promise.all([
     ebay ? load(() => fetchEbayPolicies(ebay)) : undefined,
     etsy?.settings.shopId ? load(() => fetchEtsyShopOptions(etsy)) : undefined,
+    ebay ? importedCount(ebay.id) : 0,
+    etsy ? importedCount(etsy.id) : 0,
   ]);
 
   return (
@@ -238,6 +242,14 @@ export default async function StoresPage(props: PageProps<"/stores">) {
             />
           </>
         )}
+        {ebay?.status === "active" && (
+          <ImportListings
+            store="eBay"
+            imported={ebayImported}
+            note="Listings you made on eBay's own website keep their title, photos and description on eBay. Relistic keeps their price and quantity in sync, and takes them down when they sell somewhere else."
+            run={importStorePage.bind(null, ebay.id)}
+          />
+        )}
       </section>
 
       <section className="card">
@@ -262,6 +274,9 @@ export default async function StoresPage(props: PageProps<"/stores">) {
               settings={etsy.settings}
             />
           </>
+        )}
+        {etsy?.status === "active" && etsy.settings.shopId && (
+          <ImportListings store="Etsy" imported={etsyImported} run={importStorePage.bind(null, etsy.id)} />
         )}
       </section>
 

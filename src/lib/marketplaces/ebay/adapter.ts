@@ -2,7 +2,8 @@ import type { ChannelListing, Connection } from "@/db/schema";
 import type { ItemWithImages, MarketplaceAdapter } from "../types";
 import { EbayApiError, ebayFetch } from "./client";
 import { DEFAULT_MARKETPLACE_ID } from "./config";
-import { toInventoryItem, toOffer, validateForEbay } from "./mapping";
+import { isWebsiteListing, toInventoryItem, toOffer, validateForEbay } from "./mapping";
+import { endEbayItem, relistEbayItem, reviseEbayPriceAndQuantity } from "./trading";
 
 const OFFER_ALREADY_EXISTS = 25002;
 
@@ -22,6 +23,13 @@ export const ebayAdapter: MarketplaceAdapter = {
   },
 
   async upsertListing(item: ItemWithImages, listing: ChannelListing, connection: Connection) {
+    if (isWebsiteListing(listing)) {
+      // An imported listing made on eBay's website: only its price and quantity follow Relistic.
+      const itemId =
+        listing.status === "ended" ? await relistEbayItem(connection, listing.remoteListingId!) : listing.remoteListingId!;
+      await reviseEbayPriceAndQuantity(connection, itemId, listing.overrides.priceCents ?? item.priceCents, item.quantity);
+      return { remoteListingId: itemId };
+    }
     const settings = connection.settings;
     const marketplaceId = settings.marketplaceId ?? DEFAULT_MARKETPLACE_ID;
     const sku = encodeURIComponent(item.sku);
@@ -63,6 +71,7 @@ export const ebayAdapter: MarketplaceAdapter = {
   },
 
   async endListing(listing: ChannelListing, connection: Connection) {
+    if (isWebsiteListing(listing)) return endEbayItem(connection, listing.remoteListingId!);
     if (!listing.remoteOfferId) return;
     await ebayFetch(connection, `${inventoryPath}/offer/${listing.remoteOfferId}/withdraw`, {
       method: "POST",

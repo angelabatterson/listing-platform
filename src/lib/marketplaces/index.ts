@@ -22,6 +22,8 @@ const adapters: Record<Connection["marketplace"], MarketplaceAdapter> = {
   poshmark: extensionAdapter,
   depop: extensionAdapter,
   facebook: extensionAdapter,
+  mercari: extensionAdapter,
+  whatnot: extensionAdapter,
 };
 
 export function adapterFor(marketplace: Connection["marketplace"]): MarketplaceAdapter {

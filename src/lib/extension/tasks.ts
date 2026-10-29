@@ -39,9 +39,11 @@ const MIN_PRICE_CENTS: Record<Connection["marketplace"], number> = {
   poshmark: 300,
   depop: 100,
   facebook: 100,
+  mercari: 100,
+  whatnot: 100,
 };
 
-const MAX_TITLE: Partial<Record<Connection["marketplace"], number>> = { poshmark: 80, facebook: 100 };
+const MAX_TITLE: Partial<Record<Connection["marketplace"], number>> = { poshmark: 80, facebook: 100, mercari: 80 };
 
 // Problems the store would reject, checked before the seller is asked to post.
 export function validateForExtension(item: ItemWithImages, listing: ChannelListing, connection: Connection): string[] {

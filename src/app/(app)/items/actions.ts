@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { channelListings, connections, itemImages, items } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { listingProblem, writeProblem } from "@/lib/billing/access";
 import { parseSpecifics } from "@/lib/specifics";
 import { syncItem } from "@/lib/sync/run";
 
@@ -41,6 +42,8 @@ export async function saveItem(
   const parsed = itemSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const data = parsed.data;
+  const blocked = await writeProblem(user);
+  if (blocked) return { error: blocked };
 
   const values = {
     organizationId: user.organizationId,
@@ -78,6 +81,20 @@ export async function saveItem(
     const everListed = existing?.listings.some((l) => l.remoteOfferId || l.remoteListingId);
     if (existing && everListed && existing.sku !== data.sku) {
       return { error: "The SKU can't be changed after the item has been listed." };
+    }
+  }
+
+  // Making an item active counts against the plan's listing allowance.
+  if (data.status === "active") {
+    const current = itemId
+      ? await db.query.items.findFirst({
+          where: and(eq(items.id, itemId), eq(items.organizationId, user.organizationId)),
+          columns: { status: true },
+        })
+      : undefined;
+    if (current?.status !== "active") {
+      const overLimit = await listingProblem(user);
+      if (overLimit) return { error: overLimit };
     }
   }
 
@@ -137,6 +154,7 @@ export async function archiveItem(itemId: string) {
 
 export async function resyncItem(itemId: string) {
   const user = await requireUser();
+  if (await writeProblem(user)) return; // The banner explains why.
   await syncItem(user.organizationId, itemId);
   revalidatePath(`/items/${itemId}`);
 }

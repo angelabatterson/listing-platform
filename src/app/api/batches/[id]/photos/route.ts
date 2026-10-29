@@ -2,6 +2,7 @@ import { and, count, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { batches, photos } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { writeProblem } from "@/lib/billing/access";
 import { MAX_PHOTO_BYTES, MAX_PHOTOS_PER_BATCH, MAX_THUMB_BYTES } from "@/lib/photos/limits";
 import { isJpeg, photoUrl } from "@/lib/photos/links";
 
@@ -10,6 +11,8 @@ import { isJpeg, photoUrl } from "@/lib/photos/links";
 export async function POST(request: Request, ctx: RouteContext<"/api/batches/[id]/photos">) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "Please log in again." }, { status: 401 });
+  const blocked = await writeProblem(user);
+  if (blocked) return Response.json({ error: blocked }, { status: 402 });
   const { id } = await ctx.params;
 
   const batch = await db.query.batches.findFirst({

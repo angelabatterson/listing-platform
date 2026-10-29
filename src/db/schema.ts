@@ -1,7 +1,8 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   customType,
+  index,
   integer,
   jsonb,
   pgEnum,
@@ -43,9 +44,20 @@ const timestamps = {
 };
 
 // A client account. Every row below belongs to exactly one organization.
+// The billing columns mirror the account's Stripe subscription (see lib/billing).
 export const organizations = pgTable("organizations", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
+  trialEndsAt: timestamp("trial_ends_at", { withTimezone: true })
+    .default(sql`now() + interval '14 days'`)
+    .notNull(),
+  stripeCustomerId: text("stripe_customer_id").unique(),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  // Stripe's status ("active", "past_due", "canceled", ...); null before the first plan.
+  subscriptionStatus: text("subscription_status"),
+  plan: text("plan"),
+  currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
   ...timestamps,
 });
 
@@ -268,6 +280,19 @@ export const sales = pgTable(
   (t) => [uniqueIndex("sales_connection_line").on(t.connectionId, t.externalLineId)],
 );
 
+// One row per AI-written draft, counted against the plan's monthly allowance.
+export const aiDrafts = pgTable(
+  "ai_drafts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("ai_drafts_org_created").on(t.organizationId, t.createdAt)],
+);
+
 export const batchesRelations = relations(batches, ({ many }) => ({
   photos: many(photos),
   items: many(items),
@@ -296,6 +321,7 @@ export const channelListingsRelations = relations(channelListings, ({ one }) => 
   }),
 }));
 
+export type Organization = typeof organizations.$inferSelect;
 export type Item = typeof items.$inferSelect;
 export type Batch = typeof batches.$inferSelect;
 export type Photo = typeof photos.$inferSelect;

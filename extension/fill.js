@@ -27,7 +27,24 @@
     facebook: {
       name: "Facebook Marketplace",
       fields: { title: ["title"], price: ["price"], description: ["description"] },
-      left: "category and condition",
+      // Pop-up menus, picked by the option's words. Each Relistic condition lists the
+      // site's options to try, best first.
+      menus: {
+        condition: {
+          labels: ["condition"],
+          options: {
+            NEW: ["New"],
+            NEW_OTHER: ["Used - Like New", "New"],
+            NEW_WITH_DEFECTS: ["Used - Good"],
+            USED_EXCELLENT: ["Used - Like New"],
+            USED_VERY_GOOD: ["Used - Good"],
+            USED_GOOD: ["Used - Good"],
+            USED_ACCEPTABLE: ["Used - Fair"],
+            FOR_PARTS_OR_NOT_WORKING: ["Used - Fair"],
+          },
+        },
+      },
+      left: "category",
       post: "Next, then Publish",
     },
     mercari: {
@@ -128,6 +145,43 @@
 
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+  // Option words compared loosely: case, spacing and the kind of dash don't matter.
+  const loose = (s) => norm(s).replace(/[\u2010-\u2015]/g, "-").replace(/\s*-\s*/g, " - ");
+
+  // Pick an option in a drop-down, whether a real <select> or a pop-up menu.
+  async function choose(labels, wanted) {
+    const want = wanted.map(loose);
+    const boxes = [
+      ...document.querySelectorAll("select, [role='combobox'], [aria-haspopup='listbox'], [aria-haspopup='menu']"),
+    ].filter(visible);
+    const box = boxes.find((el) =>
+      [...namesOf(el), norm(el.textContent)].some((n) => labels.some((l) => n === l || n.startsWith(l))),
+    );
+    if (!box) return false;
+    if (box instanceof HTMLSelectElement) {
+      const option = [...box.options].find((o) => want.includes(loose(o.textContent)));
+      if (!option) return false;
+      box.value = option.value;
+      box.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    }
+    box.click();
+    for (let i = 0; i < 10; i++) {
+      await wait(300);
+      const options = [...document.querySelectorAll("[role='option'], [role='menuitem'], [role='menuitemradio']")].filter(visible);
+      for (const w of want) {
+        const option = options.find((o) => loose(o.textContent) === w);
+        if (option) {
+          option.click();
+          return true;
+        }
+      }
+    }
+    // Close the menu again so the seller can pick by hand.
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    return false;
+  }
+
   // Stores build their forms with scripts after the page loads, so wait for a field.
   async function waitForForm(site) {
     const first = Object.values(site.fields)[0];
@@ -168,6 +222,13 @@
         setValue(el, values[key]);
         filled.push(names[key]);
       } else missed.push(names[key]);
+    }
+
+    for (const [key, menu] of Object.entries(site.menus || {})) {
+      const wanted = menu.options[l[key]];
+      if (!wanted) continue;
+      if (await choose(menu.labels, wanted)) filled.push(key);
+      else missed.push(key);
     }
 
     const extra = [];

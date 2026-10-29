@@ -43,6 +43,30 @@ const RELISTIC_SITES = {
     // After posting, Facebook shows your selling page rather than the new listing.
     postedWithoutLink: (url) => /^\/marketplace\/you\/selling/.test(url.pathname),
   },
+  mercari: {
+    name: "Mercari",
+    createUrl: "https://www.mercari.com/sell/",
+    editUrl: (t) => (t.remoteListingId ? `https://www.mercari.com/sell/edit/${t.remoteListingId}/` : t.remoteUrl),
+    maxPhotos: 12,
+    // https://www.mercari.com/us/item/m12345678901/
+    listingFromUrl(url) {
+      const m = url.pathname.match(/^\/(?:us\/)?item\/(m\d+)/);
+      return m ? { remoteListingId: m[1], url: `https://www.mercari.com/us/item/${m[1]}/` } : null;
+    },
+    isFormPage: (url) => /^\/sell\b/.test(url.pathname),
+  },
+  whatnot: {
+    name: "Whatnot",
+    createUrl: "https://www.whatnot.com/dashboard/listings/new",
+    editUrl: (t) => t.remoteUrl,
+    maxPhotos: 10,
+    // https://www.whatnot.com/listing/TGlzdGluZ05vZGU6MTIzNDU2
+    listingFromUrl(url) {
+      const m = url.pathname.match(/^\/listing\/([^/]+)/);
+      return m ? { remoteListingId: m[1], url: `https://www.whatnot.com/listing/${m[1]}` } : null;
+    },
+    isFormPage: (url) => /^\/dashboard\/listings\/(new|[^/]+\/edit)/.test(url.pathname),
+  },
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- read by background.js and popup.js

@@ -20,6 +20,8 @@ const EXTENSION_SITES: Record<ExtensionMarketplace, string> = {
   poshmark: "https://poshmark.com",
   depop: "https://www.depop.com",
   facebook: "https://www.facebook.com/marketplace",
+  mercari: "https://www.mercari.com",
+  whatnot: "https://www.whatnot.com",
 };
 
 function ago(date: Date): string {
@@ -45,7 +47,7 @@ async function ExtensionStores(props: { organizationId: string; conns: Connectio
   return (
     <section className="card space-y-5">
       <div>
-        <h2 className="text-lg font-semibold">Poshmark, Depop and Facebook Marketplace</h2>
+        <h2 className="text-lg font-semibold">Poshmark, Depop, Mercari, Facebook Marketplace and Whatnot</h2>
         <p className="mt-1 text-sm text-zinc-600">
           These stores don&apos;t let other apps post for you, so Relistic works through a Chrome extension in your own
           browser. It opens the store&apos;s listing page and fills in the photos, title, description and price. You

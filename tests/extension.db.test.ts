@@ -114,6 +114,14 @@ describe.runIf(process.env.TEST_DATABASE_URL)("posting through the Chrome extens
     expect((await tasks()).body.tasks).toEqual([]);
   });
 
+  it("checks each store's own limits", async () => {
+    await db.update(connections).set({ marketplace: "mercari" }).where(eq(connections.id, ids.posh));
+    await db.update(items).set({ title: "x".repeat(81) }).where(eq(items.id, ids.item));
+    const [outcome] = await syncItem(ids.org, ids.item);
+    expect(outcome).toMatchObject({ store: "Mercari", ok: false });
+    expect((await listing()).lastError).toMatch(/80 characters or fewer/);
+  });
+
   it("only answers a key for the account that made it", async () => {
     await syncItem(ids.org, ids.item);
     const [task] = (await tasks()).body.tasks;

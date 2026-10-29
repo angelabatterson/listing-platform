@@ -30,6 +30,23 @@
       left: "category and condition",
       post: "Next, then Publish",
     },
+    mercari: {
+      name: "Mercari",
+      fields: {
+        title: ["title", "what are you selling"],
+        description: ["description", "describe your item"],
+        price: ["listing price", "price"],
+        brand: ["brand"],
+      },
+      left: "category, condition and shipping",
+      post: "List",
+    },
+    whatnot: {
+      name: "Whatnot",
+      fields: { title: ["title"], description: ["description"], price: ["price", "buy it now price"] },
+      left: "category, format (Buy It Now or auction), quantity and shipping",
+      post: "Publish",
+    },
   };
 
   const norm = (s) => (s || "").replace(/\s+/g, " ").trim().toLowerCase();

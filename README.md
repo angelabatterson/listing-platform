@@ -14,6 +14,7 @@ Only marketplaces with official public APIs are supported: eBay and Etsy today.
 - **Photo batches (AI listing assistant):** upload a pile of photos at once (resized in the browser first). Claude sorts them into items, then writes each listing: title, description, condition, brand, item specifics, a suggested price, and Etsy's "when made". Each becomes a draft item with an automatic SKU (`B12-3` is item 3 of batch 12) for the seller to check before listing. Photos are stored in Postgres and served to eBay and Etsy through signed links at `/api/photos/...`. When an eBay store is ready, each draft also gets eBay's best-matching category (Taxonomy API) and the AI fills that category's required and recommended item specifics, keeping only values eBay accepts.
 - **Review and post:** each batch has a review board listing every draft with its photo, title, price and condition (editable in place), plus anything that would stop it posting, such as a missing category. Tick the drafts that are ready and post them all at once. "Download CSV" exports the batch (SKU, title, price, condition, specifics, categories, photo links) with cells made safe for spreadsheets.
 - **Listing helpers on the item page:** find an eBay or Etsy category from the title, check which item specifics eBay requires and fill them with AI, and compare prices against similar fixed-price eBay listings (Browse API; these are asking prices, since sold prices need eBay's restricted Marketplace Insights API).
+- **Subscriptions (Stripe):** a 14-day free trial, then Starter, Pro or Business plans that cap active listings and AI drafts a month. Checkout, card changes, plan switches and cancelling happen on Stripe's own pages. An account without a working plan can't post, edit or draft, but its sales are still synced so nothing oversells.
 - **eBay compliance:** the Marketplace Account Deletion endpoint eBay requires before it issues production keys.
 
 ## Stack
@@ -32,9 +33,11 @@ Next.js 16 (App Router, TypeScript), Postgres with Drizzle ORM, Tailwind CSS, Vi
 
 Every change to `main` builds `relistic-cpanel.zip` (GitHub **Releases**, latest). It's the standalone Next.js server with everything it needs, so nothing is installed on the server.
 
-1. In cPanel, open **Setup Node.js App** and create an app: Node.js 20 or newer, mode Production, your domain, and startup file `app.js`.
-2. Upload the zip into the app's folder with **File Manager** and extract it there.
-3. Add the environment variables from `.env.example` in the app's settings, then **Restart**. Database changes are applied automatically when the app starts.
+1. Upload the zip with **File Manager** into a folder outside `public_html` (for example `~/relistic`) and extract it there. Anything inside `public_html` can be downloaded.
+2. Register the app:
+   - **Setup Node.js App** (CloudLinux servers): Node.js 20 or newer, mode Production, your domain, the folder from step 1, and startup file `app.js`.
+   - **Application Manager** (other cPanel servers): if it's missing, a WHM admin turns on `mod-passenger`, `mod_env` and `nodejs22` in **EasyApache 4**, and **Application Manager** in **Feature Manager**. Register the app with your domain, base URL `/`, the folder from step 1, and Production. Passenger starts `app.js` by itself. Don't click **Ensure dependencies**: the zip already has everything.
+3. Add the environment variables from `.env.example` in the app's settings, then restart or deploy. Database changes are applied automatically when the app starts.
 4. Schedule the sales check in **Cron Jobs** every 5 minutes: `curl -fsS -H "Authorization: Bearer YOUR_CRON_SECRET" https://YOUR_DOMAIN/api/cron/check-sales`.
 
 The database can be cPanel's **PostgreSQL Databases** or any hosted Postgres (Neon's free plan works).
@@ -61,6 +64,26 @@ Etsy starts new apps with limited access. Serving many sellers needs Etsy's Comm
 
 Set `ANTHROPIC_API_KEY` (from console.anthropic.com). It uses Claude Opus 5.5 with structured output, so answers always match the shape the app expects. If the model declines a request, the API retries on Anthropic's recommended fallback model (`fallbacks: "default"`); if every model declines, the item is left for the seller to fill in. Without a key, batches still upload and can be sorted by hand.
 
+## Subscriptions (Stripe)
+
+Billing is off until `STRIPE_SECRET_KEY` is set; until then every account has full use. Accounts listed in `BILLING_EXEMPT_EMAILS` (comma-separated) never need a plan.
+
+| Plan | Active listings | AI drafts a month |
+|---|---|---|
+| Free trial (14 days) | 100 | 50 |
+| Starter | 100 | 50 |
+| Pro | 500 | 300 |
+| Business | Unlimited | 1,000 |
+
+Limits are in `src/lib/billing/plans.ts`. Prices are set in Stripe, so they can change without a code change. Use Stripe's test mode first.
+
+1. In Stripe's **Product catalog**, create three products (Starter, Pro, Business), each with one monthly recurring price. Put the price IDs (`price_...`) in `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO` and `STRIPE_PRICE_BUSINESS`.
+2. Put the secret key (**Developers > API keys**) in `STRIPE_SECRET_KEY`.
+3. Add a webhook endpoint for `${APP_URL}/api/stripe/webhook` with the events `checkout.session.completed` and `customer.subscription.created`, `.updated`, `.deleted`, `.paused` and `.resumed`. Put its signing secret (`whsec_...`) in `STRIPE_WEBHOOK_SECRET`.
+4. In **Settings > Billing > Customer portal**, let customers update payment methods, cancel, and switch between the three products.
+
+Choosing a plan during the free trial keeps the remaining trial days: the card is charged when the trial ends. When a payment fails the account keeps working while Stripe retries (`past_due`); once the subscription is cancelled or unpaid, the account can't post, edit or use the AI, but sales are still synced and its data is kept.
+
 ## Scheduled sales check
 
 `vercel.json` runs `/api/cron/check-sales` every 5 minutes on Vercel (this needs a paid Vercel plan; the free plan runs crons once a day). Set `CRON_SECRET`; Vercel sends it automatically. Anywhere else, call the endpoint on a schedule with `Authorization: Bearer $CRON_SECRET`.
@@ -77,4 +100,4 @@ The database tests run when `TEST_DATABASE_URL` points at an empty, migrated Pos
 
 ## Roadmap
 
-- Step 4: real-account testing, verifying signatures on eBay deletion notices, billing, hosting, Etsy Commercial Access.
+- Step 4: real-account testing, verifying signatures on eBay deletion notices, Etsy Commercial Access.

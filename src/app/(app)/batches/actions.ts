@@ -11,6 +11,7 @@ import { AiError, askForJson, jpegBlock } from "@/lib/ai/client";
 import { batchSku, DRAFT_SYSTEM, draftSchema, draftToItem } from "@/lib/ai/draft";
 import { normalizeGroups, SORT_SYSTEM, sortSchema } from "@/lib/ai/sort";
 import { requireUser } from "@/lib/auth";
+import { draftProblem, listingProblem, recordAiDraft, writeProblem } from "@/lib/billing/access";
 import { photoUrl } from "@/lib/photos/links";
 import { MAX_PHOTOS_PER_ITEM } from "@/lib/photos/limits";
 import { EBAY_CONDITIONS } from "@/lib/marketplaces/ebay/mapping";
@@ -39,6 +40,7 @@ async function ownBatch(organizationId: string, batchId: string) {
 
 export async function createBatch() {
   const user = await requireUser();
+  if (await writeProblem(user)) redirect("/billing");
   const [{ last }] = await db
     .select({ last: max(batches.number) })
     .from(batches)
@@ -64,6 +66,8 @@ async function nextGroupKey(batchId: string): Promise<number> {
 
 export async function sortPhotos(batchId: string): Promise<BatchActionResult> {
   const user = await requireUser();
+  const blocked = await writeProblem(user);
+  if (blocked) return { error: blocked };
   await ownBatch(user.organizationId, batchId);
   const rows = await db
     .select({ id: photos.id, thumb: photos.thumb })
@@ -134,6 +138,8 @@ export async function draftItem(batchId: string, groupKey: number): Promise<Batc
     .orderBy(asc(photos.position), asc(photos.createdAt))
     .limit(MAX_PHOTOS_PER_ITEM);
   if (group.length === 0) return { error: "Those photos have already been drafted." };
+  const overLimit = await draftProblem(user);
+  if (overLimit) return { error: overLimit };
 
   let fields: ReturnType<typeof draftToItem>;
   try {
@@ -151,6 +157,7 @@ export async function draftItem(batchId: string, groupKey: number): Promise<Batc
   } catch (err) {
     return { error: errorMessage(err) };
   }
+  await recordAiDraft(user.organizationId);
 
   let sku = batchSku(batch.number, groupKey);
   const taken = await db.query.items.findFirst({
@@ -276,6 +283,8 @@ export async function postDraft(itemId: string): Promise<BatchActionResult & { f
   });
   if (!item) return { error: "Item not found." };
   if (item.status !== "draft") return { error: "Already posted." };
+  const overLimit = await listingProblem(user);
+  if (overLimit) return { error: overLimit };
   const problems = postingProblems(item);
   if (problems.length) return { error: problems.join(" ") };
 

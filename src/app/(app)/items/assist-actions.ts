@@ -6,6 +6,7 @@ import { connections, items } from "@/db/schema";
 import { fillEbayAspects, itemPhotoBytes } from "@/lib/ai/assist";
 import { AiError } from "@/lib/ai/client";
 import { requireUser } from "@/lib/auth";
+import { writeProblem } from "@/lib/billing/access";
 import { checkEbayPrices, type PriceCheck } from "@/lib/marketplaces/ebay/browse";
 import { EbayApiError } from "@/lib/marketplaces/ebay/client";
 import { EtsyApiError } from "@/lib/marketplaces/etsy/client";
@@ -33,6 +34,8 @@ function failure(err: unknown): { error: string } {
 
 async function ownConnection(connectionId: string) {
   const user = await requireUser();
+  const blocked = await writeProblem(user);
+  if (blocked) throw new Notice(blocked);
   const connection = await db.query.connections.findFirst({
     where: and(eq(connections.id, connectionId), eq(connections.organizationId, user.organizationId)),
   });

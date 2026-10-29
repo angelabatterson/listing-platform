@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { logout } from "@/app/(auth)/actions";
 import { requireUser } from "@/lib/auth";
+import { getAccess } from "@/lib/billing/access";
+import { daysLeft, inactiveMessage, type Access } from "@/lib/billing/plans";
+import { billingEnabled } from "@/lib/billing/stripe";
 
 const nav = [
   { href: "/items", label: "Inventory" },
@@ -9,15 +12,42 @@ const nav = [
   { href: "/activity", label: "Activity" },
 ];
 
+function BillingBanner({ access }: { access: Access }) {
+  let text: string;
+  let tone = "border-amber-200 bg-amber-50 text-amber-900";
+  if (access.state === "trial") {
+    const days = daysLeft(access.trialEndsAt);
+    if (days > 3) return null;
+    text = `Your free trial ends in ${days} ${days === 1 ? "day" : "days"}. Choose a plan to keep listing.`;
+  } else if (access.state === "past_due") {
+    text = "Your last payment didn't go through. Update your card to keep your account running.";
+  } else if (access.state === "inactive") {
+    text = inactiveMessage(access);
+    tone = "border-red-200 bg-red-50 text-red-900";
+  } else {
+    return null;
+  }
+  return (
+    <div className={`border-b ${tone}`}>
+      <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-2 text-sm">
+        <span>{text}</span>
+        <Link href="/billing" className="shrink-0 font-medium underline">Billing</Link>
+      </div>
+    </div>
+  );
+}
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
+  const access = await getAccess(user);
+  const links = billingEnabled() ? [...nav, { href: "/billing", label: "Billing" }] : nav;
   return (
     <div className="flex flex-1 flex-col">
       <header className="border-b border-zinc-200 bg-white">
         <div className="mx-auto flex max-w-5xl items-center gap-6 px-6 py-3">
           <Link href="/items" className="font-semibold">Listing Sync</Link>
           <nav className="flex gap-4 text-sm">
-            {nav.map((n) => (
+            {links.map((n) => (
               <Link key={n.href} href={n.href} className="text-zinc-600 hover:text-zinc-900">{n.label}</Link>
             ))}
           </nav>
@@ -29,6 +59,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </header>
+      <BillingBanner access={access} />
       <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-8">{children}</main>
       {/* Etsy requires this notice in apps that use its API. */}
       <footer className="mx-auto w-full max-w-5xl px-6 py-6 text-xs text-zinc-500">

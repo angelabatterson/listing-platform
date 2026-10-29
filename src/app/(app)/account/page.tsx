@@ -3,7 +3,7 @@ import { SettingsForm } from "@/components/settings-form";
 import { db } from "@/db";
 import { organizations } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
-import { changeEmail, changePassword, saveProfile } from "./actions";
+import { changeEmail, changePassword, closeAccount, saveProfile } from "./actions";
 
 export default async function AccountPage() {
   const user = await requireUser();
@@ -41,6 +41,17 @@ export default async function AccountPage() {
           { name: "current", label: "Current password", type: "password", autoComplete: "current-password" },
           { name: "password", label: "New password (10+ characters)", type: "password", autoComplete: "new-password" },
           { name: "confirm", label: "New password again", type: "password", autoComplete: "new-password" },
+        ]}
+      />
+      <SettingsForm
+        title="Close account"
+        description="This cancels any subscription and permanently deletes your account, inventory, photos and store connections. Listings already on eBay or Etsy stay up in those stores; end them there first if you want them gone. This can't be undone."
+        submitLabel="Close my account"
+        danger
+        action={closeAccount}
+        fields={[
+          { name: "password", label: "Password", type: "password", autoComplete: "current-password" },
+          { name: "confirm", label: "Type CLOSE to confirm", autoComplete: "off" },
         ]}
       />
     </div>

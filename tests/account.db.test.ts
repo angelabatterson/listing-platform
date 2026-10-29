@@ -8,12 +8,25 @@ const user = { id: "", organizationId: "", email: "seller@example.com", name: nu
 const cookieToken = "this-browser";
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: cookieToken }) }) }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("next/navigation", () => ({
+  redirect: (to: string) => {
+    throw new Error(`redirect:${to}`);
+  },
+}));
+const destroySession = vi.fn(async () => {});
 vi.mock("@/lib/auth", async (original) => ({
   ...(await original<typeof import("@/lib/auth")>()),
   requireUser: async () => user,
+  destroySession,
+}));
+const cancel = vi.fn(async (id: string) => ({ id }));
+let billingOn = true;
+vi.mock("@/lib/billing/stripe", () => ({
+  billingEnabled: () => billingOn,
+  stripe: () => ({ subscriptions: { cancel } }),
 }));
 
-const { changeEmail, changePassword, saveProfile } = await import("@/app/(app)/account/actions");
+const { changeEmail, changePassword, closeAccount, saveProfile } = await import("@/app/(app)/account/actions");
 
 const form = (fields: Record<string, string>) => {
   const f = new FormData();
@@ -72,5 +85,58 @@ describe.runIf(process.env.TEST_DATABASE_URL)("account settings", () => {
     expect(await verifyPassword("new-password-1", row!.passwordHash)).toBe(true);
     const left = await db.query.sessions.findMany({ where: eq(sessions.userId, user.id) });
     expect(left.map((s) => s.id)).toEqual([sha256Hex(cookieToken)]);
+  });
+
+  describe("closing the account", () => {
+    beforeEach(() => {
+      cancel.mockReset().mockResolvedValue({ id: "sub_1" });
+      destroySession.mockClear();
+      billingOn = true;
+    });
+
+    it("needs the password and CLOSE typed", async () => {
+      expect((await closeAccount(undefined, form({ password: "old-password-1", confirm: "yes" })))?.error).toMatch(/CLOSE/);
+      expect((await closeAccount(undefined, form({ password: "wrong", confirm: "CLOSE" })))?.error).toMatch(/password/);
+      expect(await db.query.organizations.findFirst({ where: eq(organizations.id, user.organizationId) })).toBeDefined();
+    });
+
+    it("deletes a free or trial account and logs out", async () => {
+      await expect(closeAccount(undefined, form({ password: "old-password-1", confirm: " close " }))).rejects.toThrow(
+        "redirect:/?closed=1",
+      );
+      expect(cancel).not.toHaveBeenCalled();
+      expect(destroySession).toHaveBeenCalled();
+      expect(await db.query.organizations.findFirst({ where: eq(organizations.id, user.organizationId) })).toBeUndefined();
+      expect(await db.query.users.findFirst({ where: eq(users.id, user.id) })).toBeUndefined();
+      expect(await db.query.sessions.findMany({ where: eq(sessions.userId, user.id) })).toEqual([]);
+    });
+
+    it("cancels a live subscription first, and keeps everything if that fails", async () => {
+      await db
+        .update(organizations)
+        .set({ stripeSubscriptionId: "sub_1", subscriptionStatus: "active" })
+        .where(eq(organizations.id, user.organizationId));
+
+      cancel.mockRejectedValueOnce(new Error("stripe down"));
+      vi.spyOn(console, "error").mockImplementationOnce(() => {});
+      expect((await closeAccount(undefined, form({ password: "old-password-1", confirm: "CLOSE" })))?.error).toMatch(
+        /nothing was deleted/,
+      );
+      expect(await db.query.organizations.findFirst({ where: eq(organizations.id, user.organizationId) })).toBeDefined();
+
+      await expect(closeAccount(undefined, form({ password: "old-password-1", confirm: "CLOSE" }))).rejects.toThrow("redirect:");
+      expect(cancel).toHaveBeenLastCalledWith("sub_1");
+      expect(await db.query.organizations.findFirst({ where: eq(organizations.id, user.organizationId) })).toBeUndefined();
+    });
+
+    it("skips Stripe for a subscription that already ended", async () => {
+      await db
+        .update(organizations)
+        .set({ stripeSubscriptionId: "sub_1", subscriptionStatus: "canceled" })
+        .where(eq(organizations.id, user.organizationId));
+      billingOn = false;
+      await expect(closeAccount(undefined, form({ password: "old-password-1", confirm: "CLOSE" }))).rejects.toThrow("redirect:");
+      expect(cancel).not.toHaveBeenCalled();
+    });
   });
 });

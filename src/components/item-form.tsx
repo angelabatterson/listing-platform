@@ -154,7 +154,7 @@ export function ItemForm(props: {
                 </p>
               )}
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                {!s.extension && (
+                {(s.marketplace === "ebay" || s.marketplace === "etsy") && (
                   <div>
                     <label className="label" htmlFor={`category_${s.connectionId}`}>
                       {s.marketplace === "ebay" ? "eBay" : "Etsy"} category ID

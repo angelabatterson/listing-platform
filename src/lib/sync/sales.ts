@@ -5,6 +5,7 @@ import { channelListings, connections, items, sales, syncEvents, type Connection
 import { MARKETPLACE_LABELS } from "@/lib/marketplaces";
 import { fetchEbaySales } from "@/lib/marketplaces/ebay/orders";
 import { fetchEtsySales } from "@/lib/marketplaces/etsy/orders";
+import { fetchShopifySales } from "@/lib/marketplaces/shopify/orders";
 import type { SaleLine } from "@/lib/marketplaces/orders";
 import { syncItem } from "./run";
 
@@ -93,6 +94,7 @@ export async function recordSales(connection: Connection, lines: SaleLine[]): Pr
 const fetchers: Partial<Record<Connection["marketplace"], (c: Connection, since: Date) => Promise<SaleLine[]>>> = {
   ebay: fetchEbaySales,
   etsy: fetchEtsySales,
+  shopify: fetchShopifySales,
 };
 
 // Overlap each check a little so an order that arrives late isn't missed;

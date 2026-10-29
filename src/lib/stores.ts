@@ -11,6 +11,7 @@ export function isConnectionReady(c: Connection): boolean {
     return Boolean(s.merchantLocationKey && s.fulfillmentPolicyId && s.paymentPolicyId && s.returnPolicyId);
   }
   const s = c.settings;
+  if (c.marketplace === "shopify") return Boolean(s.shopDomain && s.locationId);
   return Boolean(s.shopId && s.shippingProfileId && s.returnPolicyId && s.readinessStateId);
 }
 

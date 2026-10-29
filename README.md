@@ -90,6 +90,12 @@ Each seller buys labels through their own Shippo account, so postage is billed t
 
 Buyer addresses are read from the store when a label is bought and aren't saved.
 
+## Shopify
+
+Sellers connect their store on the Stores page by typing its `*.myshopify.com` address; Relistic then goes through Shopify's OAuth install (`src/app/api/shopify/oauth`). Set `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` from the app in the Shopify Partner Dashboard, with `${APP_URL}/api/shopify/oauth/callback` as its allowed redirection URL.
+
+Each item becomes one product with a single variant (`productSet` in the Admin GraphQL API), stocked at the store's first active location. Photos are sent only when the product is created. Ending a listing sets the product to Draft. Sales come from the scheduled check, which reads paid orders; Shopify doesn't report its payment fees there, and buyer details need Shopify's protected customer data approval, so neither is saved. `/api/shopify/webhooks` handles `app/uninstalled` and the privacy webhooks every public app must answer.
+
 ## Poshmark, Depop, Mercari, Grailed, Facebook Marketplace and Whatnot (Chrome extension)
 
 None of these has a public listing API for US sellers, so they're worked through the

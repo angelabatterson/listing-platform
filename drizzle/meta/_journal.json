@@ -71,6 +71,13 @@
       "when": 1793298549040,
       "tag": "0009_grailed",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793298823484,
+      "tag": "0010_shopify",
+      "breakpoints": true
     }
   ]
 }

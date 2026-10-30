@@ -107,6 +107,11 @@ export async function saveItem(
     }
   }
 
+  // The item form shows only some of each store's settings; the rest are kept.
+  const existingListings = itemId
+    ? await db.query.channelListings.findMany({ where: eq(channelListings.itemId, itemId) })
+    : [];
+
   const id = await db.transaction(async (tx) => {
     let savedId = itemId;
     if (savedId) {
@@ -129,6 +134,7 @@ export async function saveItem(
     for (const c of orgConnections) {
       const price = String(formData.get(`price_${c.id}`) ?? "").trim();
       const overrides = {
+        ...existingListings.find((l) => l.connectionId === c.id)?.overrides,
         categoryId: String(formData.get(`category_${c.id}`) ?? "").trim() || undefined,
         whenMade: String(formData.get(`whenMade_${c.id}`) ?? "") || undefined,
         priceCents: price ? dollarsToCents(price) : undefined,

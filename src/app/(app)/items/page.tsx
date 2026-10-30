@@ -2,7 +2,8 @@ import { and, eq, ne } from "drizzle-orm";
 import Link from "next/link";
 import { FilterForm } from "@/components/filter-form";
 import { db } from "@/db";
-import { connections } from "@/db/schema";
+import { connections, type ChannelListing, type Connection } from "@/db/schema";
+import { StoreCell, type StoreCellListing } from "@/components/store-cell";
 import { requireUser } from "@/lib/auth";
 import {
   allTags,
@@ -20,21 +21,28 @@ import { storeLabel } from "@/lib/stores";
 import { MARKETPLACE_LABELS } from "@/lib/marketplaces";
 import { formatPrice } from "@/lib/marketplaces/ebay/mapping";
 
-const statusStyles: Record<string, string> = {
-  listed: "bg-green-100 text-green-800",
-  error: "bg-red-100 text-red-800",
-  ended: "bg-zinc-100 text-zinc-600",
-  not_listed: "bg-zinc-100 text-zinc-600",
-  waiting: "bg-amber-100 text-amber-900",
-};
+// Where a listing can be seen, when Relistic knows.
+function listingLink(listing: ChannelListing, store: Connection): string | null {
+  if (listing.remoteUrl) return listing.remoteUrl;
+  const id = listing.remoteListingId;
+  if (!id || listing.status === "ended") return null;
+  if (store.marketplace === "ebay") return `https://www.${store.environment === "sandbox" ? "sandbox." : ""}ebay.com/itm/${id}`;
+  if (store.marketplace === "etsy") return `https://www.etsy.com/listing/${id}`;
+  if (store.marketplace === "shopify" && store.settings.shopDomain) {
+    return `https://${store.settings.shopDomain}/admin/products/${id.split("/").pop()}`;
+  }
+  return null;
+}
 
-const statusText: Record<string, string> = {
-  listed: "Listed",
-  error: "Needs attention",
-  ended: "Ended",
-  not_listed: "Not listed",
-  waiting: "Waiting in extension",
-};
+function cellListing(item: { priceCents: number }, listing: ChannelListing | undefined, store: Connection): StoreCellListing | null {
+  if (!listing || (!listing.enabled && (listing.status === "not_listed" || listing.status === "ended"))) return null;
+  return {
+    status: listing.status,
+    priceCents: listing.overrides.priceCents ?? item.priceCents,
+    link: listingLink(listing, store),
+    error: listing.lastError,
+  };
+}
 
 // Relistic's own photo links have a small copy for lists like this one.
 const thumbOf = (url: string) => (url.includes("/api/photos/") && !url.endsWith("-thumb.jpg") ? url.replace(/\.jpg$/, "-thumb.jpg") : url);
@@ -134,7 +142,9 @@ export default async function ItemsPage(props: PageProps<"/items">) {
                 <th className="px-4 py-2">SKU</th>
                 <th className="px-4 py-2">Price</th>
                 <th className="px-4 py-2">Qty</th>
-                <th className="px-4 py-2">Stores</th>
+                {stores.map((c) => (
+                  <th key={c.id} className="whitespace-nowrap px-4 py-2">{MARKETPLACE_LABELS[c.marketplace]}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -173,17 +183,17 @@ export default async function ItemsPage(props: PageProps<"/items">) {
                     <td className="px-4 py-2 font-mono text-xs">{item.sku}</td>
                     <td className="px-4 py-2">${formatPrice(item.priceCents)}</td>
                     <td className="px-4 py-2">{item.quantity}</td>
-                    <td className="px-4 py-2">
-                      <div className="flex flex-wrap gap-1">
-                        {item.listings
-                          .filter((l) => l.enabled || l.status !== "not_listed")
-                          .map((l) => (
-                            <span key={l.id} className={`whitespace-nowrap rounded px-2 py-0.5 text-xs ${statusStyles[l.status]}`}>
-                              {MARKETPLACE_LABELS[l.connection.marketplace]}: {statusText[l.status]}
-                            </span>
-                          ))}
-                      </div>
-                    </td>
+                    {stores.map((c) => (
+                      <td key={c.id} className="px-4 py-2">
+                        <StoreCell
+                          itemId={item.id}
+                          itemTitle={item.title}
+                          connectionId={c.id}
+                          storeName={MARKETPLACE_LABELS[c.marketplace]}
+                          listing={cellListing(item, item.listings.find((l) => l.connectionId === c.id), c)}
+                        />
+                      </td>
+                    ))}
                   </tr>
                 );
               })}

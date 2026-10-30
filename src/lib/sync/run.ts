@@ -5,6 +5,7 @@ import { channelListings, items, syncEvents } from "@/db/schema";
 import { cancelOpenTasks, planExtensionWork } from "@/lib/extension/tasks";
 import { adapterFor, MARKETPLACE_LABELS } from "@/lib/marketplaces";
 import { isExtensionMarketplace } from "@/lib/marketplaces/labels";
+import { forStore } from "@/lib/marketplaces/overrides";
 import { planChannelAction } from "./plan";
 
 export type SyncOutcome = { store: string; action: string; ok: boolean; message?: string };
@@ -51,7 +52,7 @@ export async function syncItem(
           ? []
           : connection.status !== "active"
             ? [`Add ${store} again on the Stores page first.`]
-            : adapterFor(connection.marketplace).validate(item, listing, connection);
+            : adapterFor(connection.marketplace).validate(forStore(item, listing), listing, connection);
       if (problems.length) {
         ok = false;
         message = `${store}: ${problems.join(" ")}`;
@@ -73,9 +74,10 @@ export async function syncItem(
       const adapter = adapterFor(connection.marketplace);
       if (connection.status !== "active") throw new Error(`Reconnect your ${store} store first.`);
       if (action === "publish") {
-        const problems = adapter.validate(item, listing, connection);
+        const storeItem = forStore(item, listing);
+        const problems = adapter.validate(storeItem, listing, connection);
         if (problems.length) throw new Error(problems.join(" "));
-        const result = await adapter.upsertListing(item, listing, connection, {
+        const result = await adapter.upsertListing(storeItem, listing, connection, {
           onCreated: async (remoteListingId) => {
             await db.update(channelListings).set({ remoteListingId }).where(eq(channelListings.id, listing.id));
           },

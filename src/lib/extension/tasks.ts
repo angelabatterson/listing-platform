@@ -5,17 +5,19 @@ import { db } from "@/db";
 import { channelListings, extensionTasks, syncEvents, type ChannelListing, type Connection, type ExtensionTask } from "@/db/schema";
 import { MARKETPLACE_LABELS } from "@/lib/marketplaces/labels";
 import { EBAY_CONDITIONS } from "@/lib/marketplaces/ebay/mapping";
+import { forStore } from "@/lib/marketplaces/overrides";
 import type { ItemWithImages } from "@/lib/marketplaces/types";
 import type { ChannelAction } from "@/lib/sync/plan";
 
 const sortedImages = (item: ItemWithImages) => [...item.images].sort((a, b) => a.position - b.position);
 
 // What the store's listing should show, as the extension fills it in.
-export function listingContent(item: ItemWithImages, listing: Pick<ChannelListing, "overrides">) {
+export function listingContent(mainItem: ItemWithImages, listing: Pick<ChannelListing, "overrides">) {
+  const item = forStore(mainItem, listing);
   return {
-    title: listing.overrides.title ?? item.title,
+    title: item.title,
     description: item.description,
-    priceCents: listing.overrides.priceCents ?? item.priceCents,
+    priceCents: item.priceCents,
     quantity: item.quantity,
     brand: item.brand,
     condition: item.condition,

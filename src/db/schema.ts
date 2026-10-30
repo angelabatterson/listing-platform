@@ -246,8 +246,13 @@ export const photos = pgTable("photos", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// A store's own version of the item. Anything left out comes from the main item.
 export type ListingOverrides = {
   title?: string;
+  description?: string;
+  condition?: string;
+  // The photos this store gets, in order, by URL (item photos are replaced on save).
+  imageUrls?: string[];
   priceCents?: number;
   categoryId?: string;
   // Etsy only: when the item was made, e.g. "1990s" or "2020_2026".

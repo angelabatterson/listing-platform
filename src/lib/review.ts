@@ -1,5 +1,6 @@
 import type { ChannelListing, Connection } from "@/db/schema";
 import { adapterFor, MARKETPLACE_LABELS } from "@/lib/marketplaces";
+import { forStore } from "@/lib/marketplaces/overrides";
 import type { ItemWithImages } from "@/lib/marketplaces/types";
 import { isConnectionReady } from "@/lib/stores";
 
@@ -15,7 +16,7 @@ export function postingProblems(item: ItemForReview): string[] {
     const store = MARKETPLACE_LABELS[connection.marketplace];
     if (!isConnectionReady(connection)) return [`${store}: finish this store's setup on the Stores page.`];
     return adapterFor(connection.marketplace)
-      .validate(item, listing, connection)
+      .validate(forStore(item, listing), listing, connection)
       .map((p) => `${store}: ${p}`);
   });
 }

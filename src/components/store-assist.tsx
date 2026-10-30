@@ -31,6 +31,8 @@ export function StoreAssist(props: {
   marketplace: "ebay" | "etsy";
   ready: boolean;
   categoryHint?: string;
+  // Item specifics belong to the main item, so a form without them leaves those tools out.
+  noSpecifics?: boolean;
 }) {
   const { formRef, connectionId } = props;
   const [pending, startTransition] = useTransition();
@@ -71,7 +73,7 @@ export function StoreAssist(props: {
     const input = field(formRef.current, categoryField);
     if (input) input.value = option.id;
     setOptions(null);
-    if (props.marketplace === "ebay") checkSpecifics(option.id);
+    if (props.marketplace === "ebay" && !props.noSpecifics) checkSpecifics(option.id);
   };
 
   const fill = () =>
@@ -113,14 +115,16 @@ export function StoreAssist(props: {
         </button>
         {props.marketplace === "ebay" && (
           <>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => (read(categoryField) ? checkSpecifics(read(categoryField)) : setError("Choose a category first."))}
-              disabled={disabled}
-            >
-              Check item specifics
-            </button>
+            {!props.noSpecifics && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => (read(categoryField) ? checkSpecifics(read(categoryField)) : setError("Choose a category first."))}
+                disabled={disabled}
+              >
+                Check item specifics
+              </button>
+            )}
             <button type="button" className="btn-secondary" onClick={comparePrices} disabled={disabled}>
               Compare prices
             </button>

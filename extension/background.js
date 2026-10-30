@@ -39,6 +39,8 @@ function setBadge(text, color = "#18181b") {
 }
 
 // Which stores you're signed in to in this Chrome: only whether a sign-in cookie exists.
+// Sign-in cookies are set on the bare domain (".facebook.com"), so Chrome only shows them
+// to an extension allowed on every subdomain (the "https://*.facebook.com/*" permissions).
 async function signInStatus() {
   const status = {};
   for (const [marketplace, site] of Object.entries(RELISTIC_SITES)) {
@@ -51,8 +53,10 @@ async function signInStatus() {
 // Tells Relistic, so the Stores page can show it too, and picks up which stores are added.
 async function checkSignIns() {
   const signedIn = await signInStatus();
+  // Saved first, so the popup shows it even if Relistic can't be reached.
+  await chrome.storage.local.set({ signedIn });
   const me = await api("/api/extension/me", { method: "POST", body: JSON.stringify({ signedIn }) });
-  await chrome.storage.local.set({ signedIn, stores: me.stores });
+  await chrome.storage.local.set({ stores: me.stores });
 }
 
 async function refresh() {

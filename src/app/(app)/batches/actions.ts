@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, eq, inArray, isNull, max } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -9,17 +9,19 @@ import { batches, channelListings, connections, itemImages, items, photos } from
 import { autoCategorizeForEbay } from "@/lib/ai/assist";
 import { AiError, askForJson, jpegBlock } from "@/lib/ai/client";
 import { batchSku, DRAFT_SYSTEM, draftSchema, draftToItem } from "@/lib/ai/draft";
-import { normalizeGroups, SORT_SYSTEM, sortSchema } from "@/lib/ai/sort";
+import { groupsToKeep, normalizeGroups, SORT_CHUNK, SORT_SYSTEM, sortSchema } from "@/lib/ai/sort";
 import { requireUser } from "@/lib/auth";
 import { draftProblem, listingProblem, recordAiDraft, writeProblem } from "@/lib/billing/access";
 import { photoUrl } from "@/lib/photos/links";
 import { MAX_PHOTOS_PER_ITEM } from "@/lib/photos/limits";
+import { deletePhotoFiles, readPhoto, readPhotos } from "@/lib/photos/store";
 import { EBAY_CONDITIONS } from "@/lib/marketplaces/ebay/mapping";
 import { postingProblems } from "@/lib/review";
 import { isConnectionReady } from "@/lib/stores";
 import { syncItem } from "@/lib/sync/run";
 
-export type BatchActionResult = { error?: string; itemId?: string };
+// `remaining` is how many photos are still waiting to be sorted after a sorting step.
+export type BatchActionResult = { error?: string; itemId?: string; remaining?: number };
 
 // The AI sees at most this many photos per item; the rest still go on the listing.
 const PHOTOS_FOR_DRAFT = 8;
@@ -64,30 +66,43 @@ async function nextGroupKey(batchId: string): Promise<number> {
   return (last ?? -1) + 1;
 }
 
+// Sorts the next chunk of unsorted photos. The page calls it again while photos remain.
 export async function sortPhotos(batchId: string): Promise<BatchActionResult> {
   const user = await requireUser();
   const blocked = await writeProblem(user);
   if (blocked) return { error: blocked };
   await ownBatch(user.organizationId, batchId);
-  const rows = await db
-    .select({ id: photos.id, thumb: photos.thumb })
-    .from(photos)
-    .where(and(openPhotos(batchId), isNull(photos.groupKey)))
-    .orderBy(asc(photos.position), asc(photos.createdAt));
+  const unsorted = and(openPhotos(batchId), isNull(photos.groupKey));
+  const [[{ total }], rows] = await Promise.all([
+    db.select({ total: count() }).from(photos).where(unsorted),
+    db
+      .select({ id: photos.id, organizationId: photos.organizationId, thumb: photos.thumb })
+      .from(photos)
+      .where(unsorted)
+      .orderBy(asc(photos.position), asc(photos.createdAt))
+      .limit(SORT_CHUNK),
+  ]);
   if (rows.length === 0) return { error: "There are no new photos to sort." };
+  let sorted = 0;
+  const thumbs = await Promise.all(rows.map((r) => readPhoto(r, "thumb")));
 
   try {
     const answer = await askForJson({
       schema: sortSchema,
       system: SORT_SYSTEM,
       content: [
-        ...rows.flatMap((row, i) => [{ type: "text" as const, text: `Photo ${i + 1}` }, jpegBlock(row.thumb)]),
+        ...thumbs.flatMap((thumb, i) =>
+          thumb
+            ? [{ type: "text" as const, text: `Photo ${i + 1}` }, jpegBlock(thumb)]
+            : [{ type: "text" as const, text: `Photo ${i + 1} (file missing; put it in a group of its own)` }],
+        ),
         { type: "text", text: `Group these ${rows.length} photos by item.` },
       ],
       effort: "medium",
       maxTokens: 16000,
     });
-    const groups = normalizeGroups(answer.items, rows.length);
+    const groups = groupsToKeep(normalizeGroups(answer.items, rows.length), total > rows.length);
+    sorted = groups.reduce((n, g) => n + g.photos.length, 0);
     const firstKey = await nextGroupKey(batchId);
     await db.transaction(async (tx) => {
       for (const [g, group] of groups.entries()) {
@@ -101,7 +116,7 @@ export async function sortPhotos(batchId: string): Promise<BatchActionResult> {
     return { error: errorMessage(err) };
   }
   revalidatePath(`/batches/${batchId}`);
-  return {};
+  return { remaining: total - sorted };
 }
 
 // Move one photo to another item, to a new item of its own, or back to unsorted.
@@ -124,7 +139,9 @@ export async function deletePhoto(photoId: string) {
     .delete(photos)
     .where(and(eq(photos.id, photoId), eq(photos.organizationId, user.organizationId), isNull(photos.itemId)))
     .returning({ batchId: photos.batchId });
-  if (deleted) revalidatePath(`/batches/${deleted.batchId}`);
+  if (!deleted) return;
+  await deletePhotoFiles(user.organizationId, [photoId]);
+  revalidatePath(`/batches/${deleted.batchId}`);
 }
 
 // Write one draft listing from one group of photos and save it as a draft item.
@@ -132,7 +149,7 @@ export async function draftItem(batchId: string, groupKey: number): Promise<Batc
   const user = await requireUser();
   const batch = await ownBatch(user.organizationId, batchId);
   const group = await db
-    .select({ id: photos.id, data: photos.data })
+    .select({ id: photos.id, organizationId: photos.organizationId, data: photos.data })
     .from(photos)
     .where(and(openPhotos(batchId), eq(photos.groupKey, groupKey)))
     .orderBy(asc(photos.position), asc(photos.createdAt))
@@ -141,13 +158,14 @@ export async function draftItem(batchId: string, groupKey: number): Promise<Batc
   const overLimit = await draftProblem(user);
   if (overLimit) return { error: overLimit };
 
+  const draftPhotos = await readPhotos(group.slice(0, PHOTOS_FOR_DRAFT));
   let fields: ReturnType<typeof draftToItem>;
   try {
     const draft = await askForJson({
       schema: draftSchema,
       system: DRAFT_SYSTEM,
       content: [
-        ...group.slice(0, PHOTOS_FOR_DRAFT).map((p) => jpegBlock(p.data)),
+        ...draftPhotos.map(jpegBlock),
         { type: "text", text: "Write the listing for the item in these photos." },
       ],
       effort: "medium",
@@ -208,7 +226,7 @@ export async function draftItem(batchId: string, groupKey: number): Promise<Batc
         connection: ebay,
         query: fields.draftNotes.categoryQuery ?? "",
         item: fields,
-        photos: group.slice(0, PHOTOS_FOR_DRAFT).map((p) => p.data),
+        photos: draftPhotos,
       });
       if (picked) {
         await db.transaction(async (tx) => {

@@ -9,6 +9,7 @@ import { batches, items, photos } from "@/db/schema";
 import { aiIsConfigured } from "@/lib/ai/client";
 import { batchSku } from "@/lib/ai/draft";
 import { requireUser } from "@/lib/auth";
+import { getAccess } from "@/lib/billing/access";
 import { formatPrice } from "@/lib/marketplaces/ebay/mapping";
 import { photoUrl } from "@/lib/photos/links";
 import { postingProblems } from "@/lib/review";
@@ -24,7 +25,7 @@ export default async function BatchPage(props: PageProps<"/batches/[id]">) {
   });
   if (!batch) notFound();
 
-  const [photoRows, drafted] = await Promise.all([
+  const [photoRows, drafted, access] = await Promise.all([
     db
       .select({ id: photos.id, groupKey: photos.groupKey, itemId: photos.itemId, fileName: photos.fileName })
       .from(photos)
@@ -35,6 +36,7 @@ export default async function BatchPage(props: PageProps<"/batches/[id]">) {
       orderBy: asc(items.createdAt),
       with: { images: true, listings: { with: { connection: true } } },
     }),
+    getAccess(user),
   ]);
 
   const open = photoRows.filter((p) => !p.itemId);
@@ -61,7 +63,7 @@ export default async function BatchPage(props: PageProps<"/batches/[id]">) {
         <h1 className="text-2xl font-semibold">Batch B{batch.number}</h1>
       </div>
 
-      <PhotoUploader batchId={batch.id} photoCount={photoRows.length} />
+      <PhotoUploader batchId={batch.id} photoCount={photoRows.length} limit={access.limits.photosPerBatch} />
 
       <BatchBoard
         batchId={batch.id}

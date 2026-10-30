@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type DragEvent } from "react";
-import { MAX_PHOTOS_PER_BATCH, PHOTO_EDGE, THUMB_EDGE } from "@/lib/photos/limits";
+import { PHOTO_EDGE, THUMB_EDGE } from "@/lib/photos/limits";
 import { eachLimited, resizeToJpeg } from "@/lib/photos/resize";
 
 async function uploadOne(batchId: string, file: File, position: number) {
@@ -28,12 +28,12 @@ async function uploadOne(batchId: string, file: File, position: number) {
   }
 }
 
-export function PhotoUploader(props: { batchId: string; photoCount: number }) {
+export function PhotoUploader(props: { batchId: string; photoCount: number; limit: number }) {
   const router = useRouter();
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
-  const room = MAX_PHOTOS_PER_BATCH - props.photoCount;
+  const room = Math.max(0, props.limit - props.photoCount);
 
   async function upload(list: FileList | null) {
     const files = [...(list ?? [])].filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name));
@@ -81,7 +81,7 @@ export function PhotoUploader(props: { batchId: string; photoCount: number }) {
           {progress ? `Uploading ${progress.done} of ${progress.total}…` : "Drop photos here, or click to choose"}
         </span>
         <span className="text-sm text-zinc-500">
-          Shoot each item one after another; the AI sorts them into listings. Up to {MAX_PHOTOS_PER_BATCH} photos per batch.
+          Shoot each item one after another; the AI sorts them into listings. Up to {props.limit.toLocaleString("en-US")} photos per batch on your plan.
         </span>
         <input
           type="file"

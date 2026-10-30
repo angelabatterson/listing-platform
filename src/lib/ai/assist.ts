@@ -9,18 +9,19 @@ import {
   type EbayAspect,
 } from "@/lib/marketplaces/ebay/taxonomy";
 import { ASPECTS_SYSTEM, aspectsSchema, describeAspects, mergeAspects } from "./aspects";
+import { readPhotos } from "@/lib/photos/store";
 import { askForJson, jpegBlock } from "./client";
 
 const PHOTOS_FOR_ASPECTS = 6;
 
 export async function itemPhotoBytes(itemId: string, limit = PHOTOS_FOR_ASPECTS): Promise<Buffer[]> {
   const rows = await db
-    .select({ data: photos.data })
+    .select({ id: photos.id, organizationId: photos.organizationId, data: photos.data })
     .from(photos)
     .where(eq(photos.itemId, itemId))
     .orderBy(asc(photos.position))
     .limit(limit);
-  return rows.map((r) => r.data);
+  return readPhotos(rows);
 }
 
 // Ask the AI for the category's missing specifics and return the item's specifics

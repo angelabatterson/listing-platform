@@ -56,12 +56,24 @@ export function BatchBoard(props: {
   const [errors, setErrors] = useState<string[]>([]);
   const [working, setWorking] = useState(false);
 
+  // Big batches are sorted a chunk at a time; each call says how many photos are left.
   async function sort() {
     setWorking(true);
     setErrors([]);
-    setStatus(`Sorting ${props.unsorted.length} photos into items…`);
-    const result = await sortPhotos(props.batchId);
-    setErrors(result.error ? [result.error] : []);
+    const total = props.unsorted.length;
+    let remaining = total;
+    while (remaining > 0) {
+      setStatus(`Sorting photos into items: ${total - remaining} of ${total} done…`);
+      const result = await sortPhotos(props.batchId).catch((err: unknown) => ({
+        error: err instanceof Error ? err.message : String(err),
+        remaining: undefined,
+      }));
+      if (result.error || result.remaining === undefined || result.remaining >= remaining) {
+        if (result.error) setErrors([result.error]);
+        break;
+      }
+      remaining = result.remaining;
+    }
     setStatus(null);
     setWorking(false);
     router.refresh();

@@ -10,6 +10,7 @@ import { destroySession, endOtherSessions, requireUser } from "@/lib/auth";
 import { hasLiveSubscription } from "@/lib/billing/plans";
 import { billingEnabled, stripe } from "@/lib/billing/stripe";
 import { hashPassword, verifyPassword } from "@/lib/crypto";
+import { deleteAccountPhotoFiles } from "@/lib/photos/store";
 
 export type SettingsState = { error?: string; saved?: string } | undefined;
 
@@ -102,6 +103,7 @@ export async function closeAccount(_prev: SettingsState, formData: FormData): Pr
 
   // Users, sessions, stores, items, photos and history all go with the organization.
   await db.delete(organizations).where(eq(organizations.id, user.organizationId));
+  await deleteAccountPhotoFiles(user.organizationId);
   await destroySession();
   redirect("/?closed=1");
 }

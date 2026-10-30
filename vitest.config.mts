@@ -1,3 +1,5 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
@@ -24,6 +26,8 @@ export default defineConfig({
       ETSY_KEYSTRING: "etsykey",
       ETSY_SHARED_SECRET: "etsysecret",
       APP_URL: "https://app.example",
+      // Photo files go to a throwaway folder (see lib/photos/store).
+      PHOTO_DIR: join(tmpdir(), "relistic-test-photos"),
     },
   },
 });

@@ -35,3 +35,13 @@ export function normalizeGroups(groups: SortedGroup[], photoCount: number): Sort
   }
   return result.sort((a, b) => a.photos[0] - b.photos[0]);
 }
+
+// Big batches are sorted this many photos at a time, so each request stays small.
+export const SORT_CHUNK = 100;
+
+// The last item in a chunk may carry on into the next one, so when more photos follow,
+// its group is left unsorted and sorted again with the next chunk. A chunk that is all
+// one item is kept whole, so sorting always moves forward.
+export function groupsToKeep(groups: SortedGroup[], morePhotosFollow: boolean): SortedGroup[] {
+  return morePhotosFollow && groups.length > 1 ? groups.slice(0, -1) : groups;
+}

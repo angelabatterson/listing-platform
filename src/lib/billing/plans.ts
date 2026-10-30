@@ -5,18 +5,19 @@
 export const PLAN_KEYS = ["starter", "pro", "business"] as const;
 export type PlanKey = (typeof PLAN_KEYS)[number];
 
-// null means unlimited.
-export type Limits = { activeListings: number | null; aiDraftsPerMonth: number | null };
+// null means unlimited. Photo batches always have a cap, since one batch is sorted
+// and stored as a whole.
+export type Limits = { activeListings: number | null; aiDraftsPerMonth: number | null; photosPerBatch: number };
 
 export const PLANS: Record<PlanKey, { name: string; limits: Limits }> = {
-  starter: { name: "Starter", limits: { activeListings: 100, aiDraftsPerMonth: 50 } },
-  pro: { name: "Pro", limits: { activeListings: 500, aiDraftsPerMonth: 300 } },
-  business: { name: "Business", limits: { activeListings: null, aiDraftsPerMonth: 1000 } },
+  starter: { name: "Starter", limits: { activeListings: 100, aiDraftsPerMonth: 50, photosPerBatch: 250 } },
+  pro: { name: "Pro", limits: { activeListings: 500, aiDraftsPerMonth: 300, photosPerBatch: 500 } },
+  business: { name: "Business", limits: { activeListings: null, aiDraftsPerMonth: 1000, photosPerBatch: 1000 } },
 };
 
 export const TRIAL_DAYS = 14;
 export const TRIAL_LIMITS: Limits = PLANS.starter.limits;
-const UNLIMITED: Limits = { activeListings: null, aiDraftsPerMonth: null };
+const UNLIMITED: Limits = { activeListings: null, aiDraftsPerMonth: null, photosPerBatch: 1000 };
 
 // Stripe statuses that mean the subscription is paid up (or in a Stripe-side trial).
 const PAID = new Set(["active", "trialing"]);

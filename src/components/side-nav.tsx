@@ -13,6 +13,7 @@ const ICONS: Record<string, string> = {
   batches: "M4 7h3l2-3h6l2 3h3v13H4V7Zm8 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
   crm: "M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm13 9v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8",
   activity: "M3 12h4l3-8 4 16 3-8h4",
+  automations: "M13 2 4 14h7l-1 8 9-12h-7l1-8Z",
 };
 
 const NAV = [
@@ -20,6 +21,7 @@ const NAV = [
   { href: "/crm", label: "CRM", icon: "crm" },
   { href: "/items", label: "Inventory", icon: "inventory" },
   { href: "/batches", label: "Photo batches", icon: "batches" },
+  { href: "/automations", label: "Automations", icon: "automations" },
   { href: "/activity", label: "Activity", icon: "activity" },
 ];
 

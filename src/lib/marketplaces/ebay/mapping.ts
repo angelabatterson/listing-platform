@@ -1,4 +1,4 @@
-import type { ChannelListing, EbayConnectionSettings } from "@/db/schema";
+import type { ChannelListing, EbayAutomations, EbayConnectionSettings } from "@/db/schema";
 import type { ItemWithImages } from "../types";
 import { DEFAULT_MARKETPLACE_ID } from "./config";
 
@@ -65,6 +65,26 @@ export function toInventoryItem(item: ItemWithImages, listing: ChannelListing) {
   };
 }
 
+type BestOffer = NonNullable<EbayAutomations["bestOffer"]>;
+
+// The Best Offer auto-accept and auto-decline prices for one listing, in cents.
+// eBay wants both below the listing price, and the decline price below the accept price.
+export function bestOfferPrices(priceCents: number, bestOffer: BestOffer) {
+  const at = (pct: number) => (pct > 0 && pct < 100 ? Math.round((priceCents * pct) / 100) : undefined);
+  const acceptCents = at(bestOffer.acceptPct);
+  const declineCents = at(bestOffer.declinePct);
+  return { acceptCents, declineCents: acceptCents && declineCents && declineCents >= acceptCents ? undefined : declineCents };
+}
+
+// Left out when the seller has never set Best Offer, so listings keep what eBay has.
+function bestOfferTerms(priceCents: number, currency: string, bestOffer: BestOffer | undefined) {
+  if (!bestOffer) return undefined;
+  if (!bestOffer.enabled) return { bestOfferEnabled: false };
+  const { acceptCents, declineCents } = bestOfferPrices(priceCents, bestOffer);
+  const money = (cents: number | undefined) => (cents ? { value: formatPrice(cents), currency } : undefined);
+  return { bestOfferEnabled: true, autoAcceptPrice: money(acceptCents), autoDeclinePrice: money(declineCents) };
+}
+
 // Body for POST /sell/inventory/v1/offer and PUT /offer/{offerId}
 export function toOffer(item: ItemWithImages, listing: ChannelListing, settings: EbayConnectionSettings) {
   return {
@@ -78,6 +98,7 @@ export function toOffer(item: ItemWithImages, listing: ChannelListing, settings:
       fulfillmentPolicyId: settings.fulfillmentPolicyId,
       paymentPolicyId: settings.paymentPolicyId,
       returnPolicyId: settings.returnPolicyId,
+      bestOfferTerms: bestOfferTerms(listing.overrides.priceCents ?? item.priceCents, item.currency, settings.automations?.bestOffer),
     },
     merchantLocationKey: settings.merchantLocationKey,
     pricingSummary: {

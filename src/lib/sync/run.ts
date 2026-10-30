@@ -10,12 +10,13 @@ import { planChannelAction } from "./plan";
 export type SyncOutcome = { store: string; action: string; ok: boolean; message?: string };
 
 // Push one item's current state to every store it's connected to.
+// `only` limits the push to one store, for changes that concern that store alone.
 // `soldOn` is the store a sale came from: that marketplace has already lowered its
 // own quantity (or ended the listing), so it's left alone.
 export async function syncItem(
   organizationId: string,
   itemId: string,
-  options: { soldOn?: string } = {},
+  options: { soldOn?: string; only?: string } = {},
 ): Promise<SyncOutcome[]> {
   const item = await db.query.items.findFirst({
     where: and(eq(items.id, itemId), eq(items.organizationId, organizationId)),
@@ -25,6 +26,7 @@ export async function syncItem(
 
   const outcomes: SyncOutcome[] = [];
   for (const { connection, ...listing } of item.listings) {
+    if (options.only && connection.id !== options.only) continue;
     const store = MARKETPLACE_LABELS[connection.marketplace];
     const action = planChannelAction(item, listing);
     const viaExtension = isExtensionMarketplace(connection.marketplace);

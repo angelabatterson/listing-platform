@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
+import { runEbayAutomations } from "@/lib/automations/ebay";
 import { moveDatabasePhotosToFiles, removeOrphanPhotoFiles } from "@/lib/photos/store";
 import { checkAllStoresForSales } from "@/lib/sync/sales";
 
@@ -19,5 +20,9 @@ export async function GET(request: NextRequest) {
       console.error("Photo housekeeping failed", err);
       return { error: true };
     });
-  return NextResponse.json({ checked: results.length, results, photos });
+  const automations = await runEbayAutomations().catch((err: unknown) => {
+    console.error("Automations failed", err);
+    return { error: true };
+  });
+  return NextResponse.json({ checked: results.length, results, photos, automations });
 }

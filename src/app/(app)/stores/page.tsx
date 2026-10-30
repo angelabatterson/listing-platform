@@ -81,6 +81,13 @@ async function ExtensionStores(props: { organizationId: string; conns: Connectio
                   </a>{" "}
                   in Chrome.
                 </div>
+                {c?.settings.chromeSignIn && (
+                  <div className={`mt-1 text-sm font-medium ${c.settings.chromeSignIn.signedIn ? "text-green-700" : "text-amber-700"}`}>
+                    {c.settings.chromeSignIn.signedIn
+                      ? `● Signed in on Chrome (checked ${ago(new Date(c.settings.chromeSignIn.checkedAt))})`
+                      : `○ Not signed in on Chrome (checked ${ago(new Date(c.settings.chromeSignIn.checkedAt))}). Open ${MARKETPLACE_LABELS[m]} and sign in.`}
+                  </div>
+                )}
               </div>
               {c ? (
                 <form action={disconnectStore.bind(null, c.id)}>

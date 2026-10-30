@@ -1,9 +1,14 @@
 // Where each store's pages are, and how to read a listing's id from its address.
+// `signInCookies` are cookies a site only sets while you're signed in. The extension only
+// checks whether one exists; it never reads or sends what's in it. Facebook's is known;
+// the others are best guesses until checked on the real sites.
 // Shared by the background worker and the popup (loaded with importScripts / <script>).
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- read by background.js and popup.js
 const RELISTIC_SITES = {
   poshmark: {
+    domain: "poshmark.com",
+    signInCookies: ["jwt", "ui"],
     name: "Poshmark",
     createUrl: "https://poshmark.com/create-listing",
     editUrl: (t) => (t.remoteListingId ? `https://poshmark.com/edit-listing/${t.remoteListingId}` : t.remoteUrl),
@@ -16,6 +21,8 @@ const RELISTIC_SITES = {
     isFormPage: (url) => /^\/(create|edit)-listing/.test(url.pathname),
   },
   depop: {
+    domain: "depop.com",
+    signInCookies: ["access_token"],
     name: "Depop",
     createUrl: "https://www.depop.com/products/create/",
     editUrl: (t) => (t.remoteListingId ? `https://www.depop.com/products/edit/${t.remoteListingId}/` : t.remoteUrl),
@@ -29,6 +36,8 @@ const RELISTIC_SITES = {
     isFormPage: (url) => /^\/products\/(create|edit)\b/.test(url.pathname),
   },
   facebook: {
+    domain: "facebook.com",
+    signInCookies: ["c_user"],
     name: "Facebook Marketplace",
     createUrl: "https://www.facebook.com/marketplace/create/item",
     editUrl: (t) =>
@@ -44,6 +53,8 @@ const RELISTIC_SITES = {
     postedWithoutLink: (url) => /^\/marketplace\/you\/selling/.test(url.pathname),
   },
   mercari: {
+    domain: "mercari.com",
+    signInCookies: ["accessToken", "userId"],
     name: "Mercari",
     createUrl: "https://www.mercari.com/sell/",
     editUrl: (t) => (t.remoteListingId ? `https://www.mercari.com/sell/edit/${t.remoteListingId}/` : t.remoteUrl),
@@ -56,6 +67,8 @@ const RELISTIC_SITES = {
     isFormPage: (url) => /^\/sell\b/.test(url.pathname),
   },
   whatnot: {
+    domain: "whatnot.com",
+    signInCookies: ["usid", "_whatnot_session"],
     name: "Whatnot",
     createUrl: "https://www.whatnot.com/dashboard/listings/new",
     editUrl: (t) => t.remoteUrl,
@@ -68,6 +81,8 @@ const RELISTIC_SITES = {
     isFormPage: (url) => /^\/dashboard\/listings\/(new|[^/]+\/edit)/.test(url.pathname),
   },
   grailed: {
+    domain: "grailed.com",
+    signInCookies: ["_grailed_session", "grailed_jwt"],
     name: "Grailed",
     createUrl: "https://www.grailed.com/sell/new",
     editUrl: (t) => (t.remoteListingId ? `https://www.grailed.com/listings/${t.remoteListingId}/edit` : t.remoteUrl),

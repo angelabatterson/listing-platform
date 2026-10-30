@@ -88,6 +88,7 @@ export async function syncItem(
             status: "listed",
             remoteListingId: result.remoteListingId,
             remoteOfferId: result.remoteOfferId ?? listing.remoteOfferId,
+            listedAt: result.remoteListingId !== listing.remoteListingId || listing.status !== "listed" ? new Date() : listing.listedAt,
             lastSyncedAt: new Date(),
             lastError: null,
           })

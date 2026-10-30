@@ -91,6 +91,9 @@ export const sessions = pgTable("sessions", {
 export type EbayAutomations = {
   bestOffer?: { enabled: boolean; acceptPct: number; declinePct: number };
   watcherOffers?: { enabled: boolean; discountPct: number; message?: string; lastRunAt?: string };
+  // Ends and relists listings that haven't sold after `afterDays`, lowering the price by
+  // `dropPct` each time but never below `floorPct` of the item's price.
+  relist?: { enabled: boolean; afterDays: number; dropPct: number; floorPct: number; perDay: number; lastRunAt?: string };
 };
 
 export type EbayConnectionSettings = {
@@ -276,6 +279,8 @@ export const channelListings = pgTable(
     remoteOfferId: text("remote_offer_id"),
     status: listingStatusEnum("status").default("not_listed").notNull(),
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    // When the current listing went live (a relist starts a new one).
+    listedAt: timestamp("listed_at", { withTimezone: true }),
     lastError: text("last_error"),
     // Extension stores only: the listing URL, and a fingerprint of what was posted,
     // so saving an item only asks the seller to update the store when it changed.

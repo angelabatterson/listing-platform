@@ -47,6 +47,7 @@ export function EbayAutomationsForm(props: {
   });
   const bestOffer = props.automations.bestOffer ?? { enabled: false, acceptPct: 90, declinePct: 70 };
   const watchers = props.automations.watcherOffers ?? { enabled: false, discountPct: 10 };
+  const relist = props.automations.relist ?? { enabled: false, afterDays: 30, dropPct: 5, floorPct: 70, perDay: 25 };
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
@@ -102,6 +103,44 @@ export function EbayAutomationsForm(props: {
         </div>
         {watchers.lastRunAt && (
           <p className="text-xs text-zinc-500">Last checked for watchers: {new Date(watchers.lastRunAt).toLocaleString()}</p>
+        )}
+      </section>
+
+      <section className="card space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Relist listings that haven&apos;t sold</h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Once a day, Relistic ends eBay listings that have been up a while without selling and lists them again, so
+            they show up as new in eBay search. It can lower the price a little each time. The new listing loses its
+            watchers, so leave offers to watchers on as well.
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input type="checkbox" name="relistEnabled" defaultChecked={relist.enabled} className="h-4 w-4" />
+          Relist listings that haven&apos;t sold
+        </label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="afterDays">Relist after (days without selling)</label>
+            <input id="afterDays" name="afterDays" type="number" min={3} max={180} className="input" defaultValue={relist.afterDays} />
+          </div>
+          <div>
+            <label className="label" htmlFor="dropPct">Lower the price each relist by (%)</label>
+            <input id="dropPct" name="dropPct" type="number" min={0} max={50} className="input" defaultValue={relist.dropPct} />
+            <p className="mt-1 text-xs text-zinc-500">0 keeps the same price.</p>
+          </div>
+          <div>
+            <label className="label" htmlFor="floorPct">Never go below (% of the item&apos;s price)</label>
+            <input id="floorPct" name="floorPct" type="number" min={0} max={100} className="input" defaultValue={relist.floorPct} />
+            <p className="mt-1 text-xs text-zinc-500">Example: 70 on a $50 item stops dropping at $35.</p>
+          </div>
+          <div>
+            <label className="label" htmlFor="perDay">Most listings to relist per day</label>
+            <input id="perDay" name="perDay" type="number" min={1} max={200} className="input" defaultValue={relist.perDay} />
+          </div>
+        </div>
+        {relist.lastRunAt && (
+          <p className="text-xs text-zinc-500">Last checked: {new Date(relist.lastRunAt).toLocaleString()}</p>
         )}
       </section>
 

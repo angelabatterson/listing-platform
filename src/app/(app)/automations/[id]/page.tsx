@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { EbayAutomationsForm } from "@/components/ebay-automations-form";
 import { db } from "@/db";
 import { connections, syncEvents } from "@/db/schema";
@@ -16,7 +16,7 @@ export default async function StoreAutomationsPage(props: PageProps<"/automation
   });
   if (!connection || connection.marketplace !== "ebay") notFound();
   const history = await db.query.syncEvents.findMany({
-    where: and(eq(syncEvents.connectionId, connection.id), eq(syncEvents.action, "offer to watchers")),
+    where: and(eq(syncEvents.connectionId, connection.id), inArray(syncEvents.action, ["offer to watchers", "relist"])),
     orderBy: desc(syncEvents.createdAt),
     limit: 20,
   });
@@ -33,9 +33,9 @@ export default async function StoreAutomationsPage(props: PageProps<"/automation
         apply={applyEbayBestOffer.bind(null, connection.id)}
       />
       <section className="card">
-        <h2 className="text-lg font-semibold">Recent offers to watchers</h2>
+        <h2 className="text-lg font-semibold">Recent automation activity</h2>
         {history.length === 0 ? (
-          <p className="mt-2 text-sm text-zinc-600">None sent yet.</p>
+          <p className="mt-2 text-sm text-zinc-600">Nothing yet.</p>
         ) : (
           <ul className="mt-3 divide-y divide-zinc-100 text-sm">
             {history.map((e) => (

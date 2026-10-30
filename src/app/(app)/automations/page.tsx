@@ -9,8 +9,8 @@ import { storeLabel } from "@/lib/stores";
 function summary(c: Connection): { text: string; ready: boolean } {
   if (c.marketplace === "ebay") {
     const a = c.settings.automations;
-    const on = [a?.bestOffer?.enabled && "Best Offer", a?.watcherOffers?.enabled && "offers to watchers"].filter(Boolean);
-    return { text: on.length ? `On: ${on.join(" and ")}.` : "Best Offer and offers to watchers. Nothing turned on yet.", ready: true };
+    const on = [a?.bestOffer?.enabled && "Best Offer", a?.watcherOffers?.enabled && "offers to watchers", a?.relist?.enabled && "relisting"].filter(Boolean);
+    return { text: on.length ? `On: ${on.length > 1 ? `${on.slice(0, -1).join(", ")} and ${on.at(-1)}` : on[0]}.` : "Best Offer, offers to watchers and relisting. Nothing turned on yet.", ready: true };
   }
   if (c.marketplace === "poshmark" || c.marketplace === "mercari" || c.marketplace === "depop") {
     return { text: "Coming soon: sharing, offers and relisting through the Chrome extension.", ready: false };

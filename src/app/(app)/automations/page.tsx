@@ -3,6 +3,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { connections, type Connection } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { byStoreOrder } from "@/lib/marketplaces/labels";
 import { storeLabel } from "@/lib/stores";
 
 // What each store's automations do, or what's planned for it.
@@ -20,9 +21,10 @@ function summary(c: Connection): { text: string; ready: boolean } {
 
 export default async function AutomationsPage() {
   const user = await requireUser();
-  const stores = await db.query.connections.findMany({
+  const connected = await db.query.connections.findMany({
     where: and(eq(connections.organizationId, user.organizationId), ne(connections.status, "disconnected")),
   });
+  const stores = byStoreOrder(connected);
   return (
     <div className="space-y-6">
       <div>

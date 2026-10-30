@@ -1,7 +1,7 @@
 import type { ChannelListing, Connection } from "@/db/schema";
 import type { StoreOption } from "@/components/item-form";
 import { MARKETPLACE_LABELS } from "@/lib/marketplaces";
-import { isExtensionMarketplace } from "@/lib/marketplaces/labels";
+import { byStoreOrder, isExtensionMarketplace } from "@/lib/marketplaces/labels";
 
 export function isConnectionReady(c: Connection): boolean {
   if (c.status !== "active") return false;
@@ -22,7 +22,7 @@ export function storeLabel(c: Connection): string {
 }
 
 export function storeOptions(conns: Connection[], listings: ChannelListing[] = []): StoreOption[] {
-  return conns.map((c) => {
+  return byStoreOrder(conns).map((c) => {
     const l = listings.find((x) => x.connectionId === c.id);
     return {
       connectionId: c.id,

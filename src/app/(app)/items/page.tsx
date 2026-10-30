@@ -19,6 +19,7 @@ import {
 } from "@/lib/inventory";
 import { storeLabel } from "@/lib/stores";
 import { MARKETPLACE_LABELS } from "@/lib/marketplaces";
+import { byStoreOrder } from "@/lib/marketplaces/labels";
 import { formatPrice } from "@/lib/marketplaces/ebay/mapping";
 
 // Where a listing can be seen, when Relistic knows.
@@ -51,7 +52,7 @@ export default async function ItemsPage(props: PageProps<"/items">) {
   const user = await requireUser();
   const org = user.organizationId;
   const f = parseFilters(await props.searchParams);
-  const [{ rows, total }, counts, tags, stores] = await Promise.all([
+  const [{ rows, total }, counts, tags, connected] = await Promise.all([
     listInventory(org, f),
     viewCounts(org, f),
     allTags(org),
@@ -59,6 +60,7 @@ export default async function ItemsPage(props: PageProps<"/items">) {
       where: and(eq(connections.organizationId, org), ne(connections.status, "disconnected")),
     }),
   ]);
+  const stores = byStoreOrder(connected);
   const filtered = Boolean(f.q || f.store || f.issue || f.tag);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 

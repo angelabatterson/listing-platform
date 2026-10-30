@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { and, count, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { batches, photos } from "@/db/schema";
@@ -5,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getAccess, writeProblem } from "@/lib/billing/access";
 import { MAX_PHOTO_BYTES, MAX_THUMB_BYTES } from "@/lib/photos/limits";
 import { isJpeg, photoUrl } from "@/lib/photos/links";
+import { deletePhotoFiles, savePhotoFiles } from "@/lib/photos/store";
 
 // One photo per request. The browser has already resized it and made the thumbnail,
 // so each request stays well under hosting body-size limits.
@@ -40,16 +42,20 @@ export async function POST(request: Request, ctx: RouteContext<"/api/batches/[id
     return Response.json({ error: `Your plan allows up to ${photosPerBatch} photos per batch. Start a new batch for the rest.` }, { status: 400 });
   }
 
-  const [saved] = await db
-    .insert(photos)
-    .values({
+  // The files are written first, so a saved photo row always has its files.
+  const photoId = randomUUID();
+  await savePhotoFiles(user.organizationId, photoId, data, thumbData);
+  try {
+    await db.insert(photos).values({
+      id: photoId,
       organizationId: user.organizationId,
       batchId: batch.id,
       position: Number(form.get("position") ?? n),
       fileName: photo.name || null,
-      data,
-      thumb: thumbData,
-    })
-    .returning({ id: photos.id });
-  return Response.json({ id: saved.id, thumbUrl: photoUrl(saved.id, "thumb") });
+    });
+  } catch (err) {
+    await deletePhotoFiles(user.organizationId, [photoId]);
+    throw err;
+  }
+  return Response.json({ id: photoId, thumbUrl: photoUrl(photoId, "thumb") });
 }

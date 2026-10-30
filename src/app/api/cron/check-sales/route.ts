@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
+import { moveDatabasePhotosToFiles, removeOrphanPhotoFiles } from "@/lib/photos/store";
 import { checkAllStoresForSales } from "@/lib/sync/sales";
 
 // Called on a schedule (see vercel.json). Vercel sends "Authorization: Bearer $CRON_SECRET".
@@ -11,5 +12,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const results = await checkAllStoresForSales();
-  return NextResponse.json({ checked: results.length, results });
+  // Photo housekeeping rides along; a problem here never fails the sales check.
+  const photos = await Promise.all([moveDatabasePhotosToFiles(), removeOrphanPhotoFiles()])
+    .then(([moved, removed]) => ({ moved, removed }))
+    .catch((err: unknown) => {
+      console.error("Photo housekeeping failed", err);
+      return { error: true };
+    });
+  return NextResponse.json({ checked: results.length, results, photos });
 }

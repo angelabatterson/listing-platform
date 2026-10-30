@@ -217,9 +217,10 @@ export const itemImages = pgTable("item_images", {
 
 const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
 
-// An uploaded photo, already resized in the browser. Kept in Postgres so there's no
-// separate file store to set up; served to marketplaces through a signed link
-// (see lib/photos). `groupKey` is the item the photo was sorted into before drafting.
+// An uploaded photo, already resized in the browser. The image files are kept on the
+// server (lib/photos/store); `data` and `thumb` only hold photos uploaded before that,
+// until they're moved out. Served to marketplaces through a signed link (see
+// lib/photos). `groupKey` is the item the photo was sorted into before drafting.
 export const photos = pgTable("photos", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id")
@@ -232,8 +233,8 @@ export const photos = pgTable("photos", {
   groupKey: integer("group_key"),
   position: integer("position").notNull(),
   fileName: text("file_name"),
-  data: bytea("data").notNull(),
-  thumb: bytea("thumb").notNull(),
+  data: bytea("data"),
+  thumb: bytea("thumb"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

@@ -42,6 +42,8 @@ Every change to `main` builds `relistic-cpanel.zip` (GitHub **Releases**, latest
 
 The database can be cPanel's **PostgreSQL Databases** or any hosted Postgres (Neon's free plan works).
 
+Uploaded photos are saved as files on the server, in a `relistic-photos` folder next to the app folder (`~/relistic-photos` for `~/relistic`), so installing a new version keeps them. Set `PHOTO_DIR` to use another folder. Photos uploaded before files were used are moved out of the database a few at a time by the scheduled check, which also deletes files left behind by deleted photos and closed accounts. Back up this folder along with the database.
+
 ## Setting up eBay (sandbox)
 
 1. Create a developer account at https://developer.ebay.com and create a **Sandbox** keyset.

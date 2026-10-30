@@ -20,6 +20,11 @@ const ebayAutomationsSchema = z
     watcherOffersEnabled: z.literal("on").optional(),
     discountPct: pct(5, 80, "The watcher discount must be a whole number from 5 to 80."),
     message: z.string().trim().max(2000, "Keep the message under 2,000 characters."),
+    relistEnabled: z.literal("on").optional(),
+    afterDays: pct(3, 180, "Relist after must be a whole number of days from 3 to 180."),
+    dropPct: pct(0, 50, "The price drop must be a whole number from 0 to 50."),
+    floorPct: pct(0, 100, "The lowest price must be a whole number from 0 to 100."),
+    perDay: pct(1, 200, "Listings per day must be a whole number from 1 to 200."),
   })
   .refine((d) => !d.acceptPct || !d.declinePct || d.declinePct < d.acceptPct, {
     message: "The auto-decline percent has to be lower than the auto-accept percent.",
@@ -55,6 +60,14 @@ export async function saveEbayAutomations(
     message: d.message || undefined,
     lastRunAt: before.watcherOffers?.lastRunAt,
   };
+  const relist = {
+    enabled: Boolean(d.relistEnabled),
+    afterDays: d.afterDays,
+    dropPct: d.dropPct,
+    floorPct: d.floorPct,
+    perDay: d.perDay,
+    lastRunAt: before.relist?.lastRunAt,
+  };
   // Saving the Best Offer section untouched, never set before and still off, changes nothing on eBay.
   const bestOfferChanged = before.bestOffer
     ? JSON.stringify(before.bestOffer) !== JSON.stringify(bestOffer)
@@ -65,7 +78,12 @@ export async function saveEbayAutomations(
     .set({
       settings: {
         ...connection.settings,
-        automations: { ...before, bestOffer: before.bestOffer || bestOffer.enabled ? bestOffer : undefined, watcherOffers },
+        automations: {
+          ...before,
+          bestOffer: before.bestOffer || bestOffer.enabled ? bestOffer : undefined,
+          watcherOffers,
+          relist,
+        },
       },
     })
     .where(eq(connections.id, connection.id));

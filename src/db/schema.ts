@@ -86,7 +86,15 @@ export const sessions = pgTable("sessions", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// What Relistic does on its own for an eBay store (the Automations page).
+// Best Offer prices are percentages of each listing's price; 0 means "don't".
+export type EbayAutomations = {
+  bestOffer?: { enabled: boolean; acceptPct: number; declinePct: number };
+  watcherOffers?: { enabled: boolean; discountPct: number; message?: string; lastRunAt?: string };
+};
+
 export type EbayConnectionSettings = {
+  automations?: EbayAutomations;
   marketplaceId?: string;
   merchantLocationKey?: string;
   fulfillmentPolicyId?: string;

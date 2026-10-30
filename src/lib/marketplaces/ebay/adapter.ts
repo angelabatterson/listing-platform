@@ -3,7 +3,7 @@ import type { ItemWithImages, MarketplaceAdapter } from "../types";
 import { EbayApiError, ebayFetch } from "./client";
 import { DEFAULT_MARKETPLACE_ID } from "./config";
 import { formatPrice, isWebsiteListing, toInventoryItem, toOffer, validateForEbay } from "./mapping";
-import { endEbayItem, relistEbayItem, reviseEbayPriceAndQuantity } from "./trading";
+import { endEbayItem, relistEbayItem, reviseEbayBestOffer, reviseEbayPriceAndQuantity } from "./trading";
 
 const OFFER_ALREADY_EXISTS = 25002;
 
@@ -27,7 +27,10 @@ export const ebayAdapter: MarketplaceAdapter = {
       // An imported listing made on eBay's website: only its price and quantity follow Relistic.
       const itemId =
         listing.status === "ended" ? await relistEbayItem(connection, listing.remoteListingId!) : listing.remoteListingId!;
-      await reviseEbayPriceAndQuantity(connection, itemId, listing.overrides.priceCents ?? item.priceCents, item.quantity);
+      const priceCents = listing.overrides.priceCents ?? item.priceCents;
+      await reviseEbayPriceAndQuantity(connection, itemId, priceCents, item.quantity);
+      const bestOffer = connection.settings.automations?.bestOffer;
+      if (bestOffer) await reviseEbayBestOffer(connection, itemId, priceCents, bestOffer);
       return { remoteListingId: itemId };
     }
     const settings = connection.settings;

@@ -1,8 +1,9 @@
 import { XMLBuilder, XMLParser } from "fast-xml-parser";
-import type { Connection } from "@/db/schema";
+import type { Connection, EbayAutomations } from "@/db/schema";
 import { decodeEntities, type ImportedListing } from "../imported";
 import { accessTokenFor } from "../tokens";
 import { DEFAULT_MARKETPLACE_ID, ebayHosts } from "./config";
+import { bestOfferPrices } from "./mapping";
 import { refreshAccessToken } from "./oauth";
 
 // eBay's older XML "Trading" API. Listings a seller made on eBay's own website aren't
@@ -182,6 +183,27 @@ const ALREADY_ENDED = "1047";
 export async function reviseEbayPriceAndQuantity(connection: Connection, itemId: string, priceCents: number, quantity: number) {
   await tradingCall(connection, "ReviseInventoryStatus", {
     InventoryStatus: { ItemID: itemId, StartPrice: (priceCents / 100).toFixed(2), Quantity: quantity },
+  });
+}
+
+// Best Offer on a listing made on eBay's website. The Inventory API sets it with the offer.
+export async function reviseEbayBestOffer(
+  connection: Connection,
+  itemId: string,
+  priceCents: number,
+  bestOffer: NonNullable<EbayAutomations["bestOffer"]>,
+) {
+  const { acceptCents, declineCents } = bestOfferPrices(priceCents, bestOffer);
+  const money = (cents: number) => (cents / 100).toFixed(2);
+  const prices: Record<string, string> = {};
+  if (bestOffer.enabled && acceptCents) prices.BestOfferAutoAcceptPrice = money(acceptCents);
+  if (bestOffer.enabled && declineCents) prices.MinimumBestOfferPrice = money(declineCents);
+  await tradingCall(connection, "ReviseFixedPriceItem", {
+    Item: {
+      ItemID: itemId,
+      BestOfferDetails: { BestOfferEnabled: bestOffer.enabled },
+      ...(Object.keys(prices).length ? { ListingDetails: prices } : {}),
+    },
   });
 }
 

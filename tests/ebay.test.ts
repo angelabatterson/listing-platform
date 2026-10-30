@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createStarterPolicies, ebayAdapter } from "@/lib/marketplaces/ebay/adapter";
-import { toInventoryItem, toOffer, validateForEbay } from "@/lib/marketplaces/ebay/mapping";
+import { bestOfferPrices, toInventoryItem, toOffer, validateForEbay } from "@/lib/marketplaces/ebay/mapping";
+import { watcherOfferBody } from "@/lib/marketplaces/ebay/negotiation";
 import { buildAuthorizeUrl } from "@/lib/marketplaces/ebay/oauth";
 import { fetchEbaySales, orderToSales } from "@/lib/marketplaces/ebay/orders";
 import { apportion } from "@/lib/marketplaces/orders";
@@ -30,6 +31,47 @@ describe("eBay mapping", () => {
       "Set your ship-from location on the Stores page.",
       "Pick your eBay shipping, payment and return policies on the Stores page.",
     ]);
+  });
+});
+
+describe("eBay automations", () => {
+  const settings = (bestOffer?: { enabled: boolean; acceptPct: number; declinePct: number }) => ({
+    ...makeConnection().settings,
+    automations: { bestOffer },
+  });
+  const listing = makeListing({ overrides: { categoryId: "1", priceCents: 5000 } });
+
+  it("leaves Best Offer alone until the seller sets it", () => {
+    expect(toOffer(makeItem(), listing, settings()).listingPolicies.bestOfferTerms).toBeUndefined();
+  });
+
+  it("sets auto-accept and auto-decline prices from the listing price", () => {
+    const terms = toOffer(makeItem(), listing, settings({ enabled: true, acceptPct: 90, declinePct: 70 })).listingPolicies.bestOfferTerms;
+    expect(terms).toEqual({
+      bestOfferEnabled: true,
+      autoAcceptPrice: { value: "45.00", currency: "USD" },
+      autoDeclinePrice: { value: "35.00", currency: "USD" },
+    });
+  });
+
+  it("turns Best Offer off when the seller switches it off", () => {
+    const terms = toOffer(makeItem(), listing, settings({ enabled: false, acceptPct: 90, declinePct: 70 })).listingPolicies.bestOfferTerms;
+    expect(terms).toEqual({ bestOfferEnabled: false });
+  });
+
+  it("skips prices set to 0 and a decline price that isn't below the accept price", () => {
+    expect(bestOfferPrices(5000, { enabled: true, acceptPct: 0, declinePct: 60 })).toEqual({ acceptCents: undefined, declineCents: 3000 });
+    expect(bestOfferPrices(5000, { enabled: true, acceptPct: 80, declinePct: 80 })).toEqual({ acceptCents: 4000, declineCents: undefined });
+  });
+
+  it("builds a watcher offer with a percent discount and no counter-offers", () => {
+    expect(watcherOfferBody("L1", 10, "Thanks!")).toEqual({
+      allowCounterOffer: false,
+      message: "Thanks!",
+      offerDuration: { unit: "DAY", value: 2 },
+      offeredItems: [{ listingId: "L1", quantity: 1, discountPercentage: "10" }],
+    });
+    expect(watcherOfferBody("L1", 10)).not.toHaveProperty("message");
   });
 });
 
@@ -128,6 +170,26 @@ describe("eBay adapter", () => {
     });
     const result = await ebayAdapter.upsertListing(makeItem(), makeListing(), makeConnection());
     expect(result).toEqual({ remoteListingId: "L9", remoteOfferId: "O9" });
+  });
+
+  it("sets Best Offer on a listing made on eBay's website through the Trading API", async () => {
+    const bodies: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: URL, init: RequestInit) => {
+        bodies.push(String(init.body));
+        const call = (init.headers as Record<string, string>)["X-EBAY-API-CALL-NAME"];
+        return new Response(`<${call}Response><Ack>Success</Ack></${call}Response>`, { status: 200 });
+      }),
+    );
+    const listing = makeListing({ status: "listed", remoteListingId: "W1", remoteOfferId: null, overrides: { priceCents: 5000 } });
+    const connection = makeConnection();
+    connection.settings.automations = { bestOffer: { enabled: true, acceptPct: 90, declinePct: 70 } };
+    await ebayAdapter.upsertListing(makeItem(), listing, connection);
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1]).toContain("<BestOfferEnabled>true</BestOfferEnabled>");
+    expect(bodies[1]).toContain("<BestOfferAutoAcceptPrice>45.00</BestOfferAutoAcceptPrice>");
+    expect(bodies[1]).toContain("<MinimumBestOfferPrice>35.00</MinimumBestOfferPrice>");
   });
 
   it("withdraws the offer to end a listing", async () => {

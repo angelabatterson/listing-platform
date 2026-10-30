@@ -85,9 +85,32 @@ describe.runIf(process.env.TEST_DATABASE_URL)("drafting listings from a photo ba
     await db.delete(organizations);
   });
 
+  it("sorts a big batch a chunk at a time, carrying each chunk's last item into the next", async () => {
+    // 3 photos already there, plus 147 more: 150 in all, so two chunks of up to 100.
+    await db.insert(photos).values(
+      Array.from({ length: 147 }, (_, i) => ({ organizationId: user.organizationId, batchId, position: i + 3, data: jpeg, thumb: jpeg })),
+    );
+    // First chunk (photos 1-100): items of 10, the last one cut off by the chunk edge.
+    askForJson.mockResolvedValueOnce({
+      items: Array.from({ length: 10 }, (_, g) => ({ photos: Array.from({ length: 10 }, (_, i) => g * 10 + i + 1), label: `Item ${g}` })),
+    });
+    expect(await sortPhotos(batchId)).toEqual({ remaining: 60 });
+    // Second chunk starts with the held-back item (photos 91-150), so the AI sees it whole.
+    askForJson.mockResolvedValueOnce({
+      items: Array.from({ length: 6 }, (_, g) => ({ photos: Array.from({ length: 10 }, (_, i) => g * 10 + i + 1), label: `Item ${g}` })),
+    });
+    expect(await sortPhotos(batchId)).toEqual({ remaining: 0 });
+    expect(askForJson.mock.calls[1][0].content).toHaveLength(60 * 2 + 1);
+
+    const sorted = await db.select().from(photos).where(eq(photos.batchId, batchId)).orderBy(photos.position);
+    expect(new Set(sorted.map((p) => p.groupKey)).size).toBe(15);
+    expect(sorted.every((p) => p.groupKey !== null)).toBe(true);
+    expect(sorted[90].groupKey).toBe(sorted[99].groupKey);
+  });
+
   it("sorts photos, drafts one item per group, and can start an item over", async () => {
     askForJson.mockResolvedValueOnce({ items: [{ photos: [1, 2], label: "Jacket" }, { photos: [3], label: "Mug" }] });
-    expect(await sortPhotos(batchId)).toEqual({});
+    expect(await sortPhotos(batchId)).toEqual({ remaining: 0 });
     const sorted = await db.select().from(photos).where(eq(photos.batchId, batchId)).orderBy(photos.position);
     expect(sorted.map((p) => p.groupKey)).toEqual([0, 0, 1]);
 

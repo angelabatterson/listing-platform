@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, eq, inArray, isNull, max } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -9,7 +9,7 @@ import { batches, channelListings, connections, itemImages, items, photos } from
 import { autoCategorizeForEbay } from "@/lib/ai/assist";
 import { AiError, askForJson, jpegBlock } from "@/lib/ai/client";
 import { batchSku, DRAFT_SYSTEM, draftSchema, draftToItem } from "@/lib/ai/draft";
-import { normalizeGroups, SORT_SYSTEM, sortSchema } from "@/lib/ai/sort";
+import { groupsToKeep, normalizeGroups, SORT_CHUNK, SORT_SYSTEM, sortSchema } from "@/lib/ai/sort";
 import { requireUser } from "@/lib/auth";
 import { draftProblem, listingProblem, recordAiDraft, writeProblem } from "@/lib/billing/access";
 import { photoUrl } from "@/lib/photos/links";
@@ -19,7 +19,8 @@ import { postingProblems } from "@/lib/review";
 import { isConnectionReady } from "@/lib/stores";
 import { syncItem } from "@/lib/sync/run";
 
-export type BatchActionResult = { error?: string; itemId?: string };
+// `remaining` is how many photos are still waiting to be sorted after a sorting step.
+export type BatchActionResult = { error?: string; itemId?: string; remaining?: number };
 
 // The AI sees at most this many photos per item; the rest still go on the listing.
 const PHOTOS_FOR_DRAFT = 8;
@@ -64,17 +65,24 @@ async function nextGroupKey(batchId: string): Promise<number> {
   return (last ?? -1) + 1;
 }
 
+// Sorts the next chunk of unsorted photos. The page calls it again while photos remain.
 export async function sortPhotos(batchId: string): Promise<BatchActionResult> {
   const user = await requireUser();
   const blocked = await writeProblem(user);
   if (blocked) return { error: blocked };
   await ownBatch(user.organizationId, batchId);
-  const rows = await db
-    .select({ id: photos.id, thumb: photos.thumb })
-    .from(photos)
-    .where(and(openPhotos(batchId), isNull(photos.groupKey)))
-    .orderBy(asc(photos.position), asc(photos.createdAt));
+  const unsorted = and(openPhotos(batchId), isNull(photos.groupKey));
+  const [[{ total }], rows] = await Promise.all([
+    db.select({ total: count() }).from(photos).where(unsorted),
+    db
+      .select({ id: photos.id, thumb: photos.thumb })
+      .from(photos)
+      .where(unsorted)
+      .orderBy(asc(photos.position), asc(photos.createdAt))
+      .limit(SORT_CHUNK),
+  ]);
   if (rows.length === 0) return { error: "There are no new photos to sort." };
+  let sorted = 0;
 
   try {
     const answer = await askForJson({
@@ -87,7 +95,8 @@ export async function sortPhotos(batchId: string): Promise<BatchActionResult> {
       effort: "medium",
       maxTokens: 16000,
     });
-    const groups = normalizeGroups(answer.items, rows.length);
+    const groups = groupsToKeep(normalizeGroups(answer.items, rows.length), total > rows.length);
+    sorted = groups.reduce((n, g) => n + g.photos.length, 0);
     const firstKey = await nextGroupKey(batchId);
     await db.transaction(async (tx) => {
       for (const [g, group] of groups.entries()) {
@@ -101,7 +110,7 @@ export async function sortPhotos(batchId: string): Promise<BatchActionResult> {
     return { error: errorMessage(err) };
   }
   revalidatePath(`/batches/${batchId}`);
-  return {};
+  return { remaining: total - sorted };
 }
 
 // Move one photo to another item, to a new item of its own, or back to unsorted.

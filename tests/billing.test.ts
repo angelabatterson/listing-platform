@@ -22,8 +22,13 @@ describe("account access", () => {
     for (const opts of [{ enabled: false, exempt: false }, { enabled: true, exempt: true }]) {
       const access = accessFor(expired, opts, now);
       expect(access).toMatchObject({ state: "free", canWrite: true });
-      expect(access.limits).toEqual({ activeListings: null, aiDraftsPerMonth: null });
+      expect(access.limits).toEqual({ activeListings: null, aiDraftsPerMonth: null, photosPerBatch: 1000 });
     }
+  });
+
+  it("gives each plan its own photo batch size", () => {
+    expect([PLANS.starter, PLANS.pro, PLANS.business].map((p) => p.limits.photosPerBatch)).toEqual([250, 500, 1000]);
+    expect(TRIAL_LIMITS.photosPerBatch).toBe(250);
   });
 
   it("uses trial limits during the trial and locks the account after it", () => {

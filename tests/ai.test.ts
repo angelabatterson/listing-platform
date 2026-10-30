@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { batchSku, draftSchema, draftToItem, type Draft } from "@/lib/ai/draft";
-import { normalizeGroups } from "@/lib/ai/sort";
+import { groupsToKeep, normalizeGroups } from "@/lib/ai/sort";
 import { formatSpecifics, parseSpecifics } from "@/lib/specifics";
 
 const draft: Draft = {
@@ -37,6 +37,17 @@ describe("sorting photos into items", () => {
       { photos: [4], label: "" },
       { photos: [5], label: "" },
     ]);
+  });
+
+  it("leaves a chunk's last item for the next chunk while more photos follow", () => {
+    const groups = [
+      { photos: [0, 1], label: "Mug" },
+      { photos: [2, 3], label: "Jacket" },
+    ];
+    expect(groupsToKeep(groups, true)).toEqual([groups[0]]);
+    expect(groupsToKeep(groups, false)).toEqual(groups);
+    // A chunk that is all one item is kept, so sorting can't stall.
+    expect(groupsToKeep([groups[0]], true)).toEqual([groups[0]]);
   });
 });
 

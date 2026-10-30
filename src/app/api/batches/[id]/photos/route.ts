@@ -2,8 +2,8 @@ import { and, count, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { batches, photos } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { writeProblem } from "@/lib/billing/access";
-import { MAX_PHOTO_BYTES, MAX_PHOTOS_PER_BATCH, MAX_THUMB_BYTES } from "@/lib/photos/limits";
+import { getAccess, writeProblem } from "@/lib/billing/access";
+import { MAX_PHOTO_BYTES, MAX_THUMB_BYTES } from "@/lib/photos/limits";
 import { isJpeg, photoUrl } from "@/lib/photos/links";
 
 // One photo per request. The browser has already resized it and made the thumbnail,
@@ -35,8 +35,9 @@ export async function POST(request: Request, ctx: RouteContext<"/api/batches/[id
   }
 
   const [{ n }] = await db.select({ n: count() }).from(photos).where(eq(photos.batchId, batch.id));
-  if (n >= MAX_PHOTOS_PER_BATCH) {
-    return Response.json({ error: `A batch can hold up to ${MAX_PHOTOS_PER_BATCH} photos.` }, { status: 400 });
+  const { photosPerBatch } = (await getAccess(user)).limits;
+  if (n >= photosPerBatch) {
+    return Response.json({ error: `Your plan allows up to ${photosPerBatch} photos per batch. Start a new batch for the rest.` }, { status: 400 });
   }
 
   const [saved] = await db

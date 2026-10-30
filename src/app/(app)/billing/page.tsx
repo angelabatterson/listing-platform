@@ -112,6 +112,7 @@ function PlanCard(props: { plan: PlanKey; price: string | null; current: boolean
       <ul className="flex-1 space-y-1 text-sm">
         <li>{limitText(limits.activeListings, "active listings")}</li>
         <li>{limitText(limits.aiDraftsPerMonth, "AI drafts a month")}</li>
+        <li>{limitText(limits.photosPerBatch, "photos per batch")}</li>
         <li>eBay and Etsy, with sales synced across stores</li>
       </ul>
       {props.current ? (

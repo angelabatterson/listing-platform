@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { EXTENSION_MARKETPLACES } from "@/lib/marketplaces/labels";
 
 type Site = {
+  domain: string;
+  signInCookies: string[];
   createUrl: string;
   editUrl: (t: { remoteListingId?: string; remoteUrl?: string }) => string | undefined;
   listingFromUrl: (url: URL) => { remoteListingId: string; url: string } | null;
@@ -18,7 +20,11 @@ const sites: Record<string, Site> = runInNewContext(
 describe("extension store pages", () => {
   it("knows every extension store", () => {
     expect(Object.keys(sites).sort()).toEqual([...EXTENSION_MARKETPLACES].sort());
-    for (const site of Object.values(sites)) expect(site.isFormPage(new URL(site.createUrl))).toBe(true);
+    for (const site of Object.values(sites)) {
+      expect(site.isFormPage(new URL(site.createUrl))).toBe(true);
+      expect(new URL(site.createUrl).hostname.endsWith(site.domain)).toBe(true);
+      expect(site.signInCookies.length).toBeGreaterThan(0);
+    }
   });
 
   it("reads a Grailed listing link, but not its edit page", () => {

@@ -14,8 +14,8 @@ function el(tag, props = {}, ...children) {
 }
 
 async function render() {
-  const { key, email, appUrl, tasks = [], error, checkedAt } = await chrome.storage.local.get([
-    "key", "email", "appUrl", "tasks", "error", "checkedAt",
+  const { key, email, appUrl, tasks = [], error, checkedAt, stores = [], signedIn = {} } = await chrome.storage.local.get([
+    "key", "email", "appUrl", "tasks", "error", "checkedAt", "stores", "signedIn",
   ]);
   const app = appUrl || RELISTIC_DEFAULT_APP;
   main.replaceChildren();
@@ -30,6 +30,23 @@ async function render() {
   }
 
   if (error) main.append(el("p", { className: "error", textContent: error }));
+
+  // Like a connections page: each added store, and whether you're signed in to it here.
+  if (stores.length) {
+    const list = el("ul", { className: "stores" });
+    for (const s of stores) {
+      const site = RELISTIC_SITES[s.marketplace];
+      const status = signedIn[s.marketplace]
+        ? el("span", { className: "ok", textContent: "Signed in" })
+        : el("button", {
+            className: "link",
+            textContent: "Sign in",
+            onclick: () => chrome.tabs.create({ url: new URL(site.createUrl).origin }),
+          });
+      list.append(el("li", { className: "store" }, el("span", { textContent: s.name }), status));
+    }
+    main.append(el("h2", { textContent: "Your stores" }), list, el("h2", { textContent: "Waiting for you" }));
+  }
   if (tasks.length === 0) {
     main.append(el("p", { textContent: "Nothing waiting. Tick Poshmark, Depop, Mercari, Grailed, Facebook or Whatnot on an item in Relistic to list it there." }));
   } else {

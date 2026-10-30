@@ -15,3 +15,7 @@ button.secondary { background: #fff; color: #18181b; border-color: #d4d4d8; }
 button.link { border: 0; background: none; color: #52525b; padding: 0; text-decoration: underline; }
 button:disabled { opacity: 0.5; cursor: default; }
 .error { color: #b91c1c; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: #71717a; margin: 10px 0 2px; }
+li.store { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+.ok { color: #15803d; font-weight: 600; }
+.ok::before { content: "\25CF  "; }

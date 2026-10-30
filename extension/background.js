@@ -38,8 +38,26 @@ function setBadge(text, color = "#18181b") {
   chrome.action.setBadgeBackgroundColor({ color });
 }
 
+// Which stores you're signed in to in this Chrome: only whether a sign-in cookie exists.
+async function signInStatus() {
+  const status = {};
+  for (const [marketplace, site] of Object.entries(RELISTIC_SITES)) {
+    const found = await chrome.cookies.getAll({ domain: site.domain });
+    status[marketplace] = found.some((c) => site.signInCookies.includes(c.name));
+  }
+  return status;
+}
+
+// Tells Relistic, so the Stores page can show it too, and picks up which stores are added.
+async function checkSignIns() {
+  const signedIn = await signInStatus();
+  const me = await api("/api/extension/me", { method: "POST", body: JSON.stringify({ signedIn }) });
+  await chrome.storage.local.set({ signedIn, stores: me.stores });
+}
+
 async function refresh() {
   try {
+    await checkSignIns();
     const { tasks } = await api("/api/extension/tasks");
     await chrome.storage.local.set({ tasks, checkedAt: Date.now(), error: null });
     setBadge(tasks.length || "");
@@ -178,7 +196,7 @@ async function pair(key, appUrl) {
   if (!allowedApp(appUrl)) throw new Error("That isn't the Relistic site.");
   await chrome.storage.local.set({ key, appUrl });
   const me = await api("/api/extension/me");
-  await chrome.storage.local.set({ email: me.email });
+  await chrome.storage.local.set({ email: me.email, stores: me.stores });
   await refresh();
   return me.email;
 }
@@ -213,7 +231,7 @@ async function handle(message, sender) {
       return {};
     }
     case "disconnect":
-      await chrome.storage.local.remove(["key", "email", "tasks"]);
+      await chrome.storage.local.remove(["key", "email", "tasks", "stores", "signedIn"]);
       setBadge("");
       return {};
     default:

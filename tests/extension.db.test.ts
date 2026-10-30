@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { channelListings, connections, extensionTasks, itemImages, items, organizations, users } from "@/db/schema";
 import { GET as getTasks } from "@/app/api/extension/tasks/route";
 import { POST as reportTask } from "@/app/api/extension/tasks/[id]/route";
+import { POST as reportSignIns } from "@/app/api/extension/me/route";
 import { createExtensionKey } from "@/lib/extension/keys";
 import { syncItem } from "@/lib/sync/run";
 
@@ -120,6 +121,17 @@ describe.runIf(process.env.TEST_DATABASE_URL)("posting through the Chrome extens
     const [outcome] = await syncItem(ids.org, ids.item);
     expect(outcome).toMatchObject({ store: "Mercari", ok: false });
     expect((await listing()).lastError).toMatch(/80 characters or fewer/);
+  });
+
+  it("saves which stores you're signed in to in Chrome, and answers with the added stores", async () => {
+    const res = await reportSignIns(api(key, "/api/extension/me", { signedIn: { poshmark: true, depop: false } }));
+    expect(await res.json()).toEqual({ email: "me@example.com", stores: [{ marketplace: "poshmark", name: "Poshmark" }] });
+    const posh = await db.query.connections.findFirst({ where: eq(connections.id, ids.posh) });
+    expect(posh!.settings.chromeSignIn).toMatchObject({ signedIn: true });
+
+    const bad = await reportSignIns(api(key, "/api/extension/me", { signedIn: { poshmark: "yes" } }));
+    expect(bad.status).toBe(400);
+    expect((await reportSignIns(api("nope", "/api/extension/me", { signedIn: {} }))).status).toBe(401);
   });
 
   it("only answers a key for the account that made it", async () => {

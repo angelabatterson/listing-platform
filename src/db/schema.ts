@@ -133,8 +133,15 @@ export type TiktokConnectionSettings = {
   packageWeightLb?: number;
 };
 
+// Extension stores: whether the seller was signed in to the store in Chrome, as the
+// extension last saw it.
+export type ExtensionConnectionSettings = {
+  chromeSignIn?: { signedIn: boolean; checkedAt: string };
+};
+
 // Each marketplace reads only its own keys from a connection's settings.
-export type ConnectionSettings = EbayConnectionSettings &
+export type ConnectionSettings = ExtensionConnectionSettings &
+  EbayConnectionSettings &
   EtsyConnectionSettings &
   ShopifyConnectionSettings &
   TiktokConnectionSettings;

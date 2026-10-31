@@ -45,3 +45,8 @@ relistic-cpanel.zip
 # built by scripts/package-cpanel.sh
 /relistic-cpanel.zip
 /relistic-extension.zip
+
+# website build (scripts/package-website.sh)
+/website/dist/
+/relistic-website.zip
+/relistic-docs.zip

@@ -1,0 +1,29 @@
+<!--
+title: How syncing works
+description: What Relistic does when you change an item or when it sells, and how fast each store is updated.
+-->
+<p>Relistic keeps every listing matched to the item it came from. Here's exactly what happens, and when.</p>
+
+<h2>When you save an item</h2>
+<ul>
+  <li>Ticked stores where it isn't listed yet: Relistic creates the listing.</li>
+  <li>Stores where it's already listed: Relistic updates the title, description, price and quantity.</li>
+  <li>Stores you un-ticked: Relistic ends the listing there.</li>
+</ul>
+<p>The result for each store shows on the item and in <strong>Activity</strong>. If something goes wrong, Relistic explains it in plain words, for example a missing category, so you can fix it and click <strong>Sync now</strong>.</p>
+
+<h2>When an item sells</h2>
+<ol>
+  <li>Relistic finds out about the sale. Etsy tells Relistic within seconds. eBay, Shopify and TikTok Shop are checked every 5 minutes.</li>
+  <li>The item's quantity goes down by the number sold.</li>
+  <li>If there are some left, every other store is updated to the new quantity.</li>
+  <li>If none are left, the item is marked <strong>Sold</strong> and ended on every other store.</li>
+  <li>The sale shows on your <strong>Dashboard</strong>, the buyer appears in your <strong>CRM</strong>, and the order is ready on the <strong>Shipping</strong> page.</li>
+</ol>
+<div class="callout"><p><strong>Chrome extension stores</strong> (Poshmark, Depop, Mercari, Grailed, Facebook Marketplace and Whatnot) can't be changed by other apps. When an item sells elsewhere, the extension shows a <strong>Take down</strong> job and opens the listing for you to remove. See <a href="/chrome-extension/">The Chrome extension</a>.</p></div>
+
+<h2>Overselling</h2>
+<p>If two stores sell the same item before Relistic can take it down, Relistic counts each sale once and flags the extra one as an oversell in Activity, so you can contact the buyer quickly.</p>
+
+<h2>The Activity log</h2>
+<p>Click <strong>Activity</strong> in the left menu to see everything Relistic has done: each listing created, updated or ended, each sale, and any problems. It's the first place to look if something doesn't look right on a store.</p>

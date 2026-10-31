@@ -125,11 +125,11 @@ export function StoreAssist(props: {
                 Check item specifics
               </button>
             )}
-            <button type="button" className="btn-secondary" onClick={comparePrices} disabled={disabled}>
-              Compare prices
-            </button>
           </>
         )}
+        <button type="button" className="btn-secondary" onClick={comparePrices} disabled={disabled}>
+          Compare prices
+        </button>
       </div>
       {busy && <p className="text-zinc-600">{busy}</p>}
       {error && <p className="text-red-600">{error}</p>}

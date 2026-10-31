@@ -16,6 +16,7 @@ import {
   suggestEbayCategories,
   type CategoryOption,
 } from "@/lib/marketplaces/ebay/taxonomy";
+import { checkEtsyPrices } from "@/lib/marketplaces/etsy/prices";
 import { suggestEtsyCategories } from "@/lib/marketplaces/etsy/taxonomy";
 import { formatSpecifics, parseSpecifics } from "@/lib/specifics";
 
@@ -121,11 +122,14 @@ export async function checkPrices(
   if (!query.trim()) return { error: "Add a title first." };
   try {
     const { connection } = await ownConnection(connectionId);
-    const check = await checkEbayPrices(connection, {
-      query,
-      categoryId: categoryId || undefined,
-      isNew: condition.startsWith("NEW"),
-    });
+    const check =
+      connection.marketplace === "etsy"
+        ? await checkEtsyPrices(connection, { query, taxonomyId: categoryId || undefined })
+        : await checkEbayPrices(connection, {
+            query,
+            categoryId: categoryId || undefined,
+            isNew: condition.startsWith("NEW"),
+          });
     return { check };
   } catch (err) {
     return failure(err);

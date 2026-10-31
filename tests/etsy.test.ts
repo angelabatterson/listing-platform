@@ -4,6 +4,7 @@ import { etsyAdapter } from "@/lib/marketplaces/etsy/adapter";
 import { toDraftListing, toInventory, validateForEtsy } from "@/lib/marketplaces/etsy/mapping";
 import { buildAuthorizeUrl, createPkce } from "@/lib/marketplaces/etsy/oauth";
 import { receiptToSales } from "@/lib/marketplaces/etsy/orders";
+import { checkEtsyPrices, summarizeEtsyListings } from "@/lib/marketplaces/etsy/prices";
 import { verifyEtsyWebhook } from "@/lib/marketplaces/etsy/webhook";
 import { makeConnection, makeItem, makeListing } from "./fixtures";
 
@@ -221,5 +222,36 @@ describe("Etsy receipts", () => {
       buyerId: "4242",
       buyerName: "Sam Shopper",
     });
+  });
+});
+
+describe("Etsy price check", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("searches active listings and summarizes their USD asking prices", async () => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: URL) => {
+        urls.push(String(url));
+        return Response.json({
+          count: 4,
+          results: [
+            { title: "Denim jacket A", url: "https://etsy.com/listing/1", price: { amount: 2000, divisor: 100, currency_code: "USD" } },
+            { title: "Denim jacket B", url: "https://etsy.com/listing/2", price: { amount: 4000, divisor: 100, currency_code: "USD" } },
+            { title: "Denim jacket C", url: "https://etsy.com/listing/3", price: { amount: 6000, divisor: 100, currency_code: "USD" } },
+            { title: "Euro jacket", url: "https://etsy.com/listing/4", price: { amount: 9900, divisor: 100, currency_code: "EUR" } },
+          ],
+        });
+      }),
+    );
+    const check = await checkEtsyPrices(makeConnection({ marketplace: "etsy" }), { query: "denim jacket", taxonomyId: "1234" });
+    expect(urls[0]).toContain("/v3/application/listings/active?keywords=denim+jacket&limit=50&taxonomy_id=1234");
+    expect(check).toMatchObject({ count: 3, lowCents: 3000, medianCents: 4000, highCents: 5000 });
+    expect(check?.examples.map((e) => e.url)).not.toContain("https://etsy.com/listing/4");
+  });
+
+  it("says nothing was found when no listing has a USD price", () => {
+    expect(summarizeEtsyListings({ results: [] })).toBeNull();
   });
 });

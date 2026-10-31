@@ -30,17 +30,8 @@ function quantile(sorted: number[], q: number): number {
 }
 
 // A typical range rather than the extremes: the middle half of asking prices.
-export function summarizePrices(response: SearchResponse): PriceCheck | null {
-  const examples: PriceExample[] = (response.itemSummaries ?? [])
-    .filter((i) => i.price?.currency === "USD")
-    .map((i) => ({
-      title: i.title,
-      priceCents: Math.round(Number(i.price!.value) * 100),
-      url: i.itemWebUrl,
-      imageUrl: i.image?.imageUrl,
-      condition: i.condition,
-    }))
-    .filter((e) => e.priceCents > 0);
+export function summarizeExamples(found: PriceExample[]): PriceCheck | null {
+  const examples = found.filter((e) => e.priceCents > 0);
   if (examples.length === 0) return null;
   const prices = examples.map((e) => e.priceCents).sort((a, b) => a - b);
   return {
@@ -50,6 +41,20 @@ export function summarizePrices(response: SearchResponse): PriceCheck | null {
     highCents: quantile(prices, 0.75),
     examples: examples.slice(0, 6),
   };
+}
+
+export function summarizePrices(response: SearchResponse): PriceCheck | null {
+  return summarizeExamples(
+    (response.itemSummaries ?? [])
+      .filter((i) => i.price?.currency === "USD")
+      .map((i) => ({
+        title: i.title,
+        priceCents: Math.round(Number(i.price!.value) * 100),
+        url: i.itemWebUrl,
+        imageUrl: i.image?.imageUrl,
+        condition: i.condition,
+      })),
+  );
 }
 
 // Asking prices of similar fixed-price listings on eBay right now. (Sold prices

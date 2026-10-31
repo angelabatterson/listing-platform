@@ -53,6 +53,12 @@ Uploaded photos are saved as files on the server, in a `relistic-photos` folder 
 4. Create a sandbox seller test user, sign in to it, and create a shipping, payment and return policy.
 5. In the app, go to **Stores**, click **Connect eBay**, then pick the policies and your ship-from ZIP code.
 
+## Switching eBay to production
+
+1. In the developer portal, under **Alerts & Notifications** for the Production keyset, subscribe to Marketplace Account Deletion: set `EBAY_DELETION_VERIFICATION_TOKEN` (32 to 80 letters, digits, `_` or `-`) and `EBAY_DELETION_ENDPOINT_URL` (`${APP_URL}/api/ebay/account-deletion`) first, then enter the same two values in the portal. Notices are checked against eBay's signature, then the buyer's username and name are removed from sales and notes, and a closed seller account's store link is deleted.
+2. Put the Production App ID and Cert ID in `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET`, create a Production RuName as in step 3 above, and set `EBAY_ENV=production`.
+3. Sellers reconnect eBay on the Stores page. A connection made in the sandbox stops working once the environment changes, and connecting again replaces it along with its test listings and sales.
+
 ## Setting up Etsy
 
 1. Create an app at https://www.etsy.com/developers/your-apps. Put the keystring and shared secret in `ETSY_KEYSTRING` and `ETSY_SHARED_SECRET`.

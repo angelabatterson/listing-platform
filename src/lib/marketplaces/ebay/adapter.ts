@@ -142,7 +142,8 @@ export async function createStarterPolicies(connection: Connection, choices: Sta
   };
 
   const free = choices.shippingCents === 0;
-  // eBay's sandbox doesn't know Ground Advantage yet, so fall back to older USPS services.
+  // Some accounts can't use Ground Advantage (the sandbox doesn't know it; on live eBay
+  // its shipping check, "LSAS", can refuse it), so fall back to other USPS services.
   let fulfillmentPolicyId: string | undefined;
   for (const [i, serviceCode] of SHIPPING_SERVICES.entries()) {
     try {
@@ -166,7 +167,7 @@ export async function createStarterPolicies(connection: Connection, choices: Sta
       });
       break;
     } catch (err) {
-      const badService = err instanceof EbayApiError && /shipping service/i.test(err.message);
+      const badService = err instanceof EbayApiError && /shipping service|LSAS/i.test(err.message);
       if (!badService || i === SHIPPING_SERVICES.length - 1) throw err;
     }
   }

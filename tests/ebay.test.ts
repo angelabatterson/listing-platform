@@ -103,7 +103,10 @@ describe("eBay adapter", () => {
     return calls;
   }
 
-  it("creates starter policies, reusing one Relistic made before", async () => {
+  it.each([
+    ["the sandbox", "Please select a valid shipping service."],
+    ["live eBay", "LSAS validation failed.; LSAS validation failed : USPSGroundAdvantage"],
+  ])("creates starter policies, reusing one Relistic made before (Ground Advantage refused like %s)", async (_, refusal) => {
     const bodies: Record<string, unknown> = {};
     vi.stubGlobal(
       "fetch",
@@ -115,10 +118,9 @@ describe("eBay adapter", () => {
         if (key === "GET /sell/account/v1/payment_policy") return list("payment", [{ paymentPolicyId: "P9", name: "Relistic payment" }]);
         if (key === "GET /sell/account/v1/return_policy") return list("return", []);
         if (key === "POST /sell/account/v1/fulfillment_policy") {
-          // Like eBay's sandbox, which doesn't know Ground Advantage.
           const body = JSON.parse(String(init.body));
           if (body.shippingOptions[0].shippingServices[0].shippingServiceCode === "USPSGroundAdvantage") {
-            return Response.json({ errors: [{ errorId: 20403, message: "Please select a valid shipping service." }] }, { status: 400 });
+            return Response.json({ errors: [{ errorId: 20403, message: refusal }] }, { status: 400 });
           }
           return Response.json({ fulfillmentPolicyId: "F1" }, { status: 201 });
         }

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
@@ -22,6 +22,17 @@ export async function GET(request: NextRequest) {
   if (!expectedState || params.get("state") !== expectedState) redirect("/stores?error=ebay_state");
 
   const tokens = await exchangeCode(code);
+  // A connection left from eBay's test environment holds test listings and sales that
+  // mean nothing to the real eBay, so it goes rather than being reused.
+  await db
+    .delete(connections)
+    .where(
+      and(
+        eq(connections.organizationId, user.organizationId),
+        eq(connections.marketplace, "ebay"),
+        ne(connections.environment, ebayEnvironment()),
+      ),
+    );
   const values = {
     organizationId: user.organizationId,
     marketplace: "ebay" as const,

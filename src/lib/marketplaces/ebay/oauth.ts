@@ -52,3 +52,14 @@ export function refreshAccessToken(refreshToken: string): Promise<OAuthTokens> {
     scope: EBAY_SCOPES.join(" "),
   });
 }
+
+// An application token (no seller involved), for calls such as fetching eBay's
+// notification signing keys. Kept in memory until shortly before it expires.
+let appToken: { token: string; expiresAt: number } | null = null;
+
+export async function applicationToken(): Promise<string> {
+  if (appToken && appToken.expiresAt > Date.now() + 60_000) return appToken.token;
+  const tokens = await tokenRequest({ grant_type: "client_credentials", scope: EBAY_SCOPES[0] });
+  appToken = { token: tokens.accessToken, expiresAt: tokens.accessTokenExpiresAt.getTime() };
+  return tokens.accessToken;
+}

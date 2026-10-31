@@ -1,6 +1,6 @@
 import type { Connection } from "@/db/schema";
 import { accessTokenFor } from "../tokens";
-import { ebayHosts } from "./config";
+import { ebayEnvironment, ebayHosts } from "./config";
 import { refreshAccessToken } from "./oauth";
 
 export class EbayApiError extends Error {
@@ -21,6 +21,11 @@ export async function ebayFetch<T = unknown>(
   path: string,
   init: { method?: string; body?: unknown; host?: "api" | "apiz"; headers?: Record<string, string> } = {},
 ): Promise<T> {
+  if (connection.environment !== ebayEnvironment()) {
+    throw new Error(
+      `This eBay connection was made in eBay's ${connection.environment} environment. Reconnect eBay on the Stores page.`,
+    );
+  }
   const token = await accessTokenFor(connection, refreshAccessToken);
   const res = await fetch(new URL(path, ebayHosts()[init.host ?? "api"]), {
     method: init.method ?? "GET",

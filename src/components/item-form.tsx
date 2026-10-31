@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { PhotoLinks } from "./photo-links";
 import { StoreAssist } from "./store-assist";
 import { useFormAction } from "./use-form-action";
 import type { ItemFormState } from "@/app/(app)/items/actions";
@@ -123,13 +124,7 @@ export function ItemForm(props: {
             The details buyers filter by on eBay. Write each as &quot;Name: value&quot;, with commas between several values.
           </p>
         </div>
-        <div className="sm:col-span-2">
-          <label className="label" htmlFor="imageUrls">Photo links (one per line, https://)</label>
-          <textarea id="imageUrls" name="imageUrls" rows={3} className="input font-mono text-xs" defaultValue={v.imageUrls} />
-          <p className="mt-1 text-xs text-zinc-500">
-            The first photo is the main one. Upload photos from a photo batch, or paste links to hosted photos.
-          </p>
-        </div>
+        <PhotoLinks defaultValue={v.imageUrls} />
       </section>
 
       <section className="card">

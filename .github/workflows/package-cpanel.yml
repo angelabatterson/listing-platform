@@ -24,12 +24,13 @@ jobs:
         env:
           # The build never connects; the real address is set on the server.
           DATABASE_URL: postgres://unused@localhost:1/unused
+      - run: bash scripts/package-website.sh
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "cpanel-${{ github.run_number }}" relistic-cpanel.zip relistic-extension.zip \
+          gh release create "cpanel-${{ github.run_number }}" relistic-cpanel.zip relistic-extension.zip relistic-website.zip relistic-docs.zip \
             --target "${{ github.sha }}" \
             --title "cPanel package ${{ github.run_number }}" \
-            --notes "Built from ${{ github.sha }}. Download relistic-cpanel.zip below and upload it to your cPanel Node.js app folder." \
+            --notes "Built from ${{ github.sha }}. Download relistic-cpanel.zip below and upload it to your cPanel Node.js app folder. relistic-website.zip is getrelistic.com and relistic-docs.zip is doc.getrelistic.com (see website/README.md)." \
             --latest

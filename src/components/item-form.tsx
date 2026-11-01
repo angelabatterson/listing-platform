@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { PhotoLinks } from "./photo-links";
 import { StoreAssist } from "./store-assist";
 import { useFormAction } from "./use-form-action";
@@ -48,6 +48,7 @@ export function ItemForm(props: {
   itemId?: string;
 }) {
   const { state, onSubmit, pending } = useFormAction(props.action);
+  const [clicked, setClicked] = useState<"save" | "sync">("sync");
   const formRef = useRef<HTMLFormElement>(null);
   const v = props.values;
   return (
@@ -199,8 +200,22 @@ export function ItemForm(props: {
       </section>
 
       {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
-      <div>
-        <button className="btn" disabled={pending}>{pending ? "Saving and syncing…" : props.submitLabel}</button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          name="intent"
+          value="save"
+          className="btn-secondary disabled:opacity-50"
+          disabled={pending}
+          onClick={() => setClicked("save")}
+        >
+          {pending && clicked === "save" ? "Saving…" : "Save"}
+        </button>
+        <button name="intent" value="sync" className="btn" disabled={pending} onClick={() => setClicked("sync")}>
+          {pending && clicked === "sync" ? "Saving and syncing…" : props.submitLabel}
+        </button>
+        <p className="text-xs text-zinc-500">
+          <strong>Save</strong> keeps your changes in Relistic only. <strong>{props.submitLabel}</strong> also sends them to the ticked stores.
+        </p>
       </div>
     </form>
   );

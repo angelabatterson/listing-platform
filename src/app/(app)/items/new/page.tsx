@@ -16,7 +16,7 @@ export default async function NewItemPage() {
       <h1 className="mb-6 text-2xl font-semibold">Add item</h1>
       <ItemForm
         action={saveItem.bind(null, null)}
-        submitLabel="Save item"
+        submitLabel="Save + Sync"
         stores={storeOptions(conns).map((s) => ({ ...s, enabled: s.ready }))}
         values={{
           title: "",

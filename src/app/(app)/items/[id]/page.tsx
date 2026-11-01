@@ -45,7 +45,13 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
         </div>
       </div>
 
-      {saved && item.status === "draft" ? (
+      {saved === "local" ? (
+        <p className="rounded-md bg-blue-50 px-4 py-2 text-sm text-blue-900">
+          Saved in Relistic.{" "}
+          {item.status === "active" && tickedStores.length > 0 &&
+            `Nothing was sent to ${tickedStores.join(" or ")}. Click Save + Sync when you're ready to update your stores.`}
+        </p>
+      ) : saved && item.status === "draft" ? (
         <p className="rounded-md bg-amber-50 px-4 py-2 text-sm text-amber-900">
           Saved as a draft.{" "}
           {tickedStores.length > 0 &&
@@ -98,7 +104,7 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
       <ItemForm
         action={saveItem.bind(null, item.id)}
         itemId={item.id}
-        submitLabel="Save and sync"
+        submitLabel="Save + Sync"
         stores={storeOptions(conns, item.listings)}
         values={{
           title: item.title,

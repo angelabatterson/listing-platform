@@ -2,6 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BatchBoard, type BoardGroup, type BoardPhoto } from "@/components/batch-board";
+import { DeleteBatchButton } from "@/components/delete-batch-button";
 import { PhotoUploader } from "@/components/photo-uploader";
 import { ReviewBoard } from "@/components/review-board";
 import { db } from "@/db";
@@ -43,6 +44,7 @@ export default async function BatchPage(props: PageProps<"/batches/[id]">) {
   const toBoard = (p: (typeof open)[number]): BoardPhoto => ({
     id: p.id,
     thumbUrl: photoUrl(p.id, "thumb"),
+    fullUrl: photoUrl(p.id),
     fileName: p.fileName,
   });
   const groups = new Map<number, BoardGroup>();
@@ -58,9 +60,12 @@ export default async function BatchPage(props: PageProps<"/batches/[id]">) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <Link href="/batches" className="text-sm text-zinc-600 hover:underline">← Photo batches</Link>
-        <h1 className="text-2xl font-semibold">Batch B{batch.number}</h1>
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <Link href="/batches" className="text-sm text-zinc-600 hover:underline">← Photo batches</Link>
+          <h1 className="text-2xl font-semibold">Batch B{batch.number}</h1>
+        </div>
+        <DeleteBatchButton batchId={batch.id} number={batch.number} itemCount={drafted.length} />
       </div>
 
       <PhotoUploader batchId={batch.id} photoCount={photoRows.length} limit={access.limits.photosPerBatch} />
@@ -84,6 +89,7 @@ export default async function BatchPage(props: PageProps<"/batches/[id]">) {
               price: formatPrice(item.priceCents),
               condition: item.condition,
               thumbUrl: thumb ? photoUrl(thumb, "thumb") : null,
+              photoUrls: [...item.images].sort((a, b) => a.position - b.position).map((i) => i.url),
               priceNote: item.draftNotes.priceNote,
               problems: postingProblems(item),
             };

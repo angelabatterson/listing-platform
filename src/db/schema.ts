@@ -244,9 +244,8 @@ export const photos = pgTable("photos", {
   organizationId: uuid("organization_id")
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
-  batchId: uuid("batch_id")
-    .notNull()
-    .references(() => batches.id, { onDelete: "cascade" }),
+  // Left empty once the batch is deleted; photos already on an item are kept.
+  batchId: uuid("batch_id").references(() => batches.id, { onDelete: "set null" }),
   itemId: uuid("item_id").references(() => items.id, { onDelete: "set null" }),
   groupKey: integer("group_key"),
   position: integer("position").notNull(),

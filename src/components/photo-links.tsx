@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { relisticPhotoFile } from "@/lib/photos/background";
+import { PhotoViewer } from "./photo-viewer";
 
 const lines = (text: string) =>
   text
@@ -11,16 +12,33 @@ const lines = (text: string) =>
 
 const thumbOf = (url: string) => (relisticPhotoFile(url) ? url.replace(/\.jpg$/, "-thumb.jpg") : url);
 
-// The item's photo links, with a preview of each photo and a free "Remove background"
-// button for photos uploaded to Relistic. Edits only change the links here; the seller
-// presses Save to use them, and Undo puts the original photo back.
+// The item's photos: click one to see it bigger, move it left or right (the first is the
+// main photo), delete it, or remove its background for free. Changes only touch the
+// links here; the seller presses Save to use them. The raw links can still be edited.
 export function PhotoLinks(props: { defaultValue: string }) {
   const [text, setText] = useState(props.defaultValue);
   const [busy, setBusy] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [originals, setOriginals] = useState<Record<string, string>>({});
+  const [zoom, setZoom] = useState<number | null>(null);
   const urls = lines(text);
+
+  const setUrls = (next: string[]) => setText(next.join("\n"));
+
+  function move(i: number, by: -1 | 1) {
+    const j = i + by;
+    if (j < 0 || j >= urls.length) return;
+    const next = [...urls];
+    [next[i], next[j]] = [next[j], next[i]];
+    setUrls(next);
+    setStatus("Photo order changed. Press Save to keep it.");
+  }
+
+  function remove(i: number) {
+    setUrls(urls.filter((_, k) => k !== i));
+    setStatus("Photo taken off this item. Press Save to keep the change.");
+  }
 
   const swap = (from: string, to: string) =>
     setText((current) => lines(current).map((u) => (u === from ? to : u)).join("\n"));
@@ -63,31 +81,36 @@ export function PhotoLinks(props: { defaultValue: string }) {
 
   return (
     <div className="sm:col-span-2">
-      <label className="label" htmlFor="imageUrls">Photo links (one per line, https://)</label>
-      <textarea
-        id="imageUrls"
-        name="imageUrls"
-        rows={3}
-        className="input font-mono text-xs"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-      />
-      <p className="mt-1 text-xs text-zinc-500">
-        The first photo is the main one. Upload photos from a photo batch, or paste links to hosted photos.
-      </p>
-      {urls.length > 0 && (
-        <ul className="mt-3 flex flex-wrap gap-3">
+      <p className="label">Photos ({urls.length})</p>
+      {urls.length === 0 ? (
+        <p className="text-sm text-zinc-500">No photos yet. Upload them in a photo batch, or paste photo links below.</p>
+      ) : (
+        <ul className="flex flex-wrap gap-3">
           {urls.map((url, i) => (
-            <li key={`${url}-${i}`} className="flex w-28 flex-col gap-1 text-xs">
-              {/* eslint-disable-next-line @next/next/no-img-element -- photos come from many hosts */}
-              <img src={thumbOf(url)} alt={`Photo ${i + 1}`} className="h-28 w-28 rounded-md border border-zinc-200 bg-white object-contain" />
+            <li key={`${url}-${i}`} className="flex w-32 flex-col gap-1 text-xs">
+              <button type="button" className="relative block" onClick={() => setZoom(i)} title="Click to see it bigger">
+                {/* eslint-disable-next-line @next/next/no-img-element -- photos come from many hosts */}
+                <img src={thumbOf(url)} alt={`Photo ${i + 1}`} className="h-32 w-32 rounded-md border border-zinc-200 bg-white object-contain" />
+                {i === 0 && <span className="absolute left-1 top-1 rounded bg-zinc-900/80 px-1.5 py-0.5 text-[10px] text-white">Main</span>}
+              </button>
+              <div className="flex items-center justify-between">
+                <button type="button" aria-label="Move left" className="rounded border border-zinc-300 px-2 disabled:opacity-30" onClick={() => move(i, -1)} disabled={i === 0 || busy !== null}>
+                  ←
+                </button>
+                <button type="button" className="text-red-700 underline disabled:opacity-50" onClick={() => remove(i)} disabled={busy !== null}>
+                  Delete
+                </button>
+                <button type="button" aria-label="Move right" className="rounded border border-zinc-300 px-2 disabled:opacity-30" onClick={() => move(i, 1)} disabled={i === urls.length - 1 || busy !== null}>
+                  →
+                </button>
+              </div>
               {relisticPhotoFile(url) && (
-                <button type="button" className="underline disabled:opacity-50" onClick={() => removeBg(url)} disabled={busy !== null}>
+                <button type="button" className="text-left underline disabled:opacity-50" onClick={() => removeBg(url)} disabled={busy !== null}>
                   {busy === url ? "Working…" : "Remove background"}
                 </button>
               )}
               {originals[url] && (
-                <button type="button" className="underline" onClick={() => undo(url)} disabled={busy !== null}>
+                <button type="button" className="text-left underline" onClick={() => undo(url)} disabled={busy !== null}>
                   Undo
                 </button>
               )}
@@ -95,6 +118,9 @@ export function PhotoLinks(props: { defaultValue: string }) {
           ))}
         </ul>
       )}
+      <p className="mt-2 text-xs text-zinc-500">
+        The first photo is the main one. Click a photo to see it bigger. Use the arrows to change the order.
+      </p>
       {status && <p className="mt-2 text-sm text-zinc-600">{status}</p>}
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       {urls.some((u) => !relisticPhotoFile(u)) && (
@@ -102,6 +128,19 @@ export function PhotoLinks(props: { defaultValue: string }) {
           Background removal works on photos uploaded to Relistic through a photo batch.
         </p>
       )}
+      <details className="mt-3">
+        <summary className="cursor-pointer text-sm text-zinc-600">Add or edit photo links</summary>
+        <label className="label mt-2" htmlFor="imageUrls">Photo links (one per line, https://)</label>
+        <textarea
+          id="imageUrls"
+          name="imageUrls"
+          rows={3}
+          className="input font-mono text-xs"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+      </details>
+      {zoom !== null && <PhotoViewer urls={urls} index={zoom} onIndex={setZoom} onClose={() => setZoom(null)} />}
     </div>
   );
 }

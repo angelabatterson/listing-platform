@@ -7,31 +7,86 @@ import { resizeToJpeg } from "./resize";
 
 export const BACKGROUND_MODEL = "onnx-community/BiRefNet_lite-ONNX";
 
+type Device = "webgpu" | "wasm";
 type Remover = (image: string) => Promise<RawImage | RawImage[]>;
 
-let remover: Promise<Remover> | null = null;
+const loaded: Partial<Record<Device, Promise<Remover>>> = {};
+const NO_GPU_KEY = "relistic:background-no-gpu";
 
-function loadRemover(onProgress: (percent: number) => void): Promise<Remover> {
-  remover ??= (async () => {
+// Some graphics cards can't run this model (for example "Too many storage buffers in
+// shader"). Once that happens the browser remembers it and goes straight to the CPU.
+function gpuUsable(): boolean {
+  if (typeof navigator === "undefined" || !("gpu" in navigator)) return false;
+  try {
+    return localStorage.getItem(NO_GPU_KEY) !== "1";
+  } catch {
+    return true;
+  }
+}
+
+function giveUpOnGpu() {
+  try {
+    localStorage.setItem(NO_GPU_KEY, "1");
+  } catch {
+    // Private windows can refuse storage; we'll just try the GPU again next time.
+  }
+}
+
+function loadRemover(device: Device, onProgress: (percent: number) => void): Promise<Remover> {
+  const existing = loaded[device];
+  if (existing) return existing;
+  const loading = (async () => {
     const { pipeline } = await import("@huggingface/transformers");
-    const load = (device: "webgpu" | "wasm") =>
-      pipeline("background-removal", BACKGROUND_MODEL, {
-        device,
-        dtype: device === "webgpu" ? "fp16" : "fp32",
-        progress_callback: (info) => {
-          if (info.status === "progress_total") onProgress(Math.round(info.progress));
-        },
-      });
-    // WebGPU (most current Chrome and Edge) is much faster; older browsers use the CPU.
-    const hasGpu = typeof navigator !== "undefined" && "gpu" in navigator;
-    const segmenter = hasGpu ? await load("webgpu").catch(() => load("wasm")) : await load("wasm");
+    const segmenter = await pipeline("background-removal", BACKGROUND_MODEL, {
+      device,
+      dtype: device === "webgpu" ? "fp16" : "fp32",
+      progress_callback: (info) => {
+        if (info.status === "progress_total") onProgress(Math.round(info.progress));
+      },
+    });
     return (image: string) => segmenter(image);
   })();
+  loaded[device] = loading;
   // A failed download shouldn't stick: let the next click try again.
-  remover.catch(() => {
-    remover = null;
+  loading.catch(() => {
+    delete loaded[device];
   });
-  return remover;
+  return loading;
+}
+
+async function runOn(device: Device, url: string, onProgress: (percent: number) => void) {
+  const remove = await loadRemover(device, onProgress).catch((err) => {
+    console.error(err);
+    throw new DownloadError();
+  });
+  return remove(url);
+}
+
+class DownloadError extends Error {
+  constructor() {
+    super("Couldn't download the background tool. Check your internet connection and try again.");
+  }
+}
+
+// WebGPU (most current Chrome and Edge) is much faster. If the graphics card can't load
+// or run the model, the CPU version does the job instead, more slowly.
+async function cutOut(url: string, onProgress: (percent: number) => void) {
+  if (gpuUsable()) {
+    try {
+      return await runOn("webgpu", url, onProgress);
+    } catch (err) {
+      console.warn("Background removal on the graphics card failed; using the CPU instead.", err);
+      giveUpOnGpu();
+      delete loaded.webgpu;
+    }
+  }
+  try {
+    return await runOn("wasm", url, onProgress);
+  } catch (err) {
+    if (err instanceof DownloadError) throw err;
+    console.error(err);
+    throw new Error("Couldn't remove the background from this photo. Try again, or try another photo.");
+  }
 }
 
 // Cuts the item out of the photo at `url` and puts it on a white background, as most
@@ -40,11 +95,7 @@ export async function removeBackground(
   url: string,
   onProgress: (percent: number) => void = () => {},
 ): Promise<{ photo: Blob; thumb: Blob }> {
-  const remove = await loadRemover(onProgress).catch((err) => {
-    console.error(err);
-    throw new Error("Couldn't download the background tool. Check your internet connection and try again.");
-  });
-  const result = await remove(url);
+  const result = await cutOut(url, onProgress);
   const cutout = Array.isArray(result) ? result[0] : result;
   const bitmap = await createImageBitmap(cutout.toCanvas() as HTMLCanvasElement | OffscreenCanvas);
   try {

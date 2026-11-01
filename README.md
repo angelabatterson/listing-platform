@@ -73,6 +73,10 @@ Etsy starts new apps with limited access. Serving many sellers needs Etsy's Comm
 
 Set `ANTHROPIC_API_KEY` (from console.anthropic.com). It uses Claude Opus 5.5 with structured output, so answers always match the shape the app expects. If the model declines a request, the API retries on Anthropic's recommended fallback model (`fallbacks: "default"`); if every model declines, the item is left for the seller to fill in. Without a key, batches still upload and can be sorted by hand.
 
+## Background removal
+
+"Remove background" under an item's photos runs in the seller's browser with Transformers.js and the MIT-licensed BiRefNet lite model (`onnx-community/BiRefNet_lite-ONNX`), which the browser downloads from Hugging Face the first time (about 115 MB with WebGPU, 225 MB without) and then caches. No key or paid service is needed. The cut-out is put on a white background and saved as a new photo next to the original (`/api/photos/edits`), so Undo can put the original back. Only photos uploaded to Relistic can be edited.
+
 ## Subscriptions (Stripe)
 
 Billing is off until `STRIPE_SECRET_KEY` is set; until then every account has full use. Accounts whose email is in `BILLING_EXEMPT_EMAILS` (comma-separated) are on the Free unlimited plan: no charge and no limits. Sellers manage their account (name, business name, email, password) and billing from the menu under their name; the Billing page has a **Cancel subscription** link straight to Stripe's cancel confirmation.

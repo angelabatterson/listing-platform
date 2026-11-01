@@ -50,12 +50,13 @@ describe("eBay categories and item specifics", () => {
     expect(conformToAspects({ Department: ["Kids"] }, aspects)).toEqual({});
   });
 
-  it("asks the AI only for wanted specifics the item doesn't have", () => {
+  it("asks the AI for the specifics the item doesn't have, required ones first", () => {
     const text = describeAspects(aspects, { Brand: ["Levi's"] });
     expect(text).toContain("- Department (required, one value; allowed values: Men | Women)");
     expect(text).toContain("- Features (recommended, several values allowed");
     expect(text).not.toContain("Brand");
-    expect(text).not.toContain("Lining");
+    expect(text).toContain("- Lining (optional, one value)");
+    expect(text.indexOf("Department")).toBeLessThan(text.indexOf("Lining"));
   });
 
   it("never lets the AI overwrite the seller's values", () => {

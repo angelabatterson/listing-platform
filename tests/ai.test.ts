@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { batchSku, draftSchema, draftToItem, type Draft } from "@/lib/ai/draft";
+import { batchSku, draftSchema, draftSystem, draftToItem, type Draft } from "@/lib/ai/draft";
 import { groupsToKeep, normalizeGroups } from "@/lib/ai/sort";
 import { formatSpecifics, parseSpecifics } from "@/lib/specifics";
 
@@ -19,6 +19,9 @@ const draft: Draft = {
   suggestedPrice: 42.499,
   priceNote: "Similar jackets sell for $35 to $50.",
   whenMade: "1990s",
+  longTitle: "Levi's 501 Women's Denim Jacket Size M Blue Cotton Vintage 90s Trucker Button Front Classic Fit Western",
+  skuOnPhoto: null,
+  skuPhoto: null,
 };
 
 describe("sorting photos into items", () => {
@@ -64,6 +67,30 @@ describe("turning a draft into an item", () => {
       priceNote: "Similar jackets sell for $35 to $50.",
       whenMade: "1990s",
     });
+  });
+
+  it("cuts titles at a word break and keeps a longer title for Etsy", () => {
+    const item = draftToItem(draft);
+    expect(item.title).toBe("Levi's 501 Women's Denim Jacket Size M Blue Cotton Vintage 90s Trucker Button");
+    expect(item.longTitle).toBe(draft.longTitle);
+    expect(draftToItem({ ...draft, longTitle: "Short" }).longTitle).toBeNull();
+  });
+
+  it("uses the seller's SKU from a photo and keeps the SKU-only photo off the listing", () => {
+    expect(draftToItem({ ...draft, skuOnPhoto: " BIN 4 017 ", skuPhoto: 3 }, 4)).toMatchObject({ ownSku: "BIN-4-017", skuPhoto: 2 });
+    // Never drops the only photo, or a photo that doesn't exist.
+    expect(draftToItem({ ...draft, skuOnPhoto: "A1", skuPhoto: 1 }, 1).skuPhoto).toBeNull();
+    expect(draftToItem({ ...draft, skuOnPhoto: "A1", skuPhoto: 9 }, 4).skuPhoto).toBeNull();
+    expect(draftToItem({ ...draft, skuOnPhoto: null, skuPhoto: 2 }, 4)).toMatchObject({ ownSku: null, skuPhoto: null });
+  });
+
+  it("follows the seller's title order and can skip reading SKUs", () => {
+    const system = draftSystem({ titleOrder: ["size", "brand", "nonsense"], skuFromPhoto: false });
+    expect(system).toContain("1. Size");
+    expect(system).toContain("2. Brand");
+    expect(system).not.toContain("3.");
+    expect(system).toContain("always return null for skuOnPhoto");
+    expect(draftSystem()).toContain("1. Brand");
   });
 
   it("never prices below a dollar and drops an empty brand", () => {

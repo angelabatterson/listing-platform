@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { discardDraft, postDraft, quickEdit } from "@/app/(app)/batches/actions";
+import { discardDraft, postDraft, quickEdit, setDraftStore } from "@/app/(app)/batches/actions";
 import { EBAY_CONDITIONS } from "@/lib/marketplaces/ebay/mapping";
 import { eachLimited } from "@/lib/photos/resize";
 import { PhotoViewer } from "./photo-viewer";
@@ -18,6 +18,9 @@ export type ReviewDraft = {
   // Every photo on the item, full size, in order.
   photoUrls: string[];
   priceNote?: string;
+  skuNote?: string;
+  // Every store the seller has, and whether this draft will post to it.
+  stores: { connectionId: string; label: string; enabled: boolean; ready: boolean }[];
   problems: string[];
 };
 
@@ -32,13 +35,23 @@ function DraftRow(props: {
   disabled: boolean;
 }) {
   const d = props.draft;
-  const [values, setValues] = useState({ title: d.title, price: d.price, condition: d.condition });
+  const saved = { title: d.title, price: d.price, condition: d.condition, sku: d.sku };
+  const [values, setValues] = useState(saved);
   const [zoom, setZoom] = useState<number | null>(null);
-  const dirty = values.title !== d.title || values.price !== d.price || values.condition !== d.condition;
+  const [storeBusy, setStoreBusy] = useState(false);
+  const same = (a: typeof saved) => (Object.keys(saved) as (keyof typeof saved)[]).every((k) => a[k] === saved[k]);
+  const dirty = !same(values);
 
   async function save(next = values) {
-    if (next.title === d.title && next.price === d.price && next.condition === d.condition) return;
+    if (same(next)) return;
     const result = await quickEdit(d.id, next);
+    props.onSaved(result.error);
+  }
+
+  async function toggleStore(connectionId: string, on: boolean) {
+    setStoreBusy(true);
+    const result = await setDraftStore(d.id, connectionId, on);
+    setStoreBusy(false);
     props.onSaved(result.error);
   }
 
@@ -83,7 +96,18 @@ function DraftRow(props: {
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="font-mono text-xs text-zinc-600">{d.sku}</span>
+          <label className="flex items-center gap-1 text-xs text-zinc-600">
+            SKU
+            <input
+              aria-label="SKU"
+              className="input w-28 font-mono text-xs"
+              value={values.sku}
+              maxLength={50}
+              disabled={props.disabled}
+              onChange={(e) => setValues({ ...values, sku: e.currentTarget.value })}
+              onBlur={() => save()}
+            />
+          </label>
           <label className="flex items-center gap-1">
             $
             <input
@@ -118,7 +142,28 @@ function DraftRow(props: {
             <button className="text-zinc-600 underline" disabled={props.disabled}>Discard and redo</button>
           </form>
         </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          <span className="font-medium">Post to:</span>
+          {d.stores.length === 0 && (
+            <Link href="/stores" className="underline">Connect a store first</Link>
+          )}
+          {d.stores.map((st) => (
+            <label key={st.connectionId} className={`flex items-center gap-1 ${st.ready ? "" : "text-zinc-400"}`}>
+              <input
+                type="checkbox"
+                checked={st.enabled}
+                disabled={props.disabled || storeBusy || (!st.ready && !st.enabled)}
+                onChange={(e) => toggleStore(st.connectionId, e.currentTarget.checked)}
+              />
+              {st.label}
+              {!st.ready && (
+                <Link href="/stores" className="text-xs underline">(finish setup)</Link>
+              )}
+            </label>
+          ))}
+        </div>
         {d.priceNote && <p className="text-xs text-zinc-500">AI price note: {d.priceNote}</p>}
+        {d.skuNote && <p className="text-xs text-amber-800">{d.skuNote}</p>}
         {d.problems.length > 0 && (
           <ul className="list-disc pl-5 text-xs text-amber-800">
             {d.problems.map((p, i) => (
@@ -186,7 +231,7 @@ export function ReviewBoard(props: { batchId: string; drafts: ReviewDraft[] }) {
       <ul className="flex flex-col divide-y divide-zinc-100">
         {props.drafts.map((d) => (
           <DraftRow
-            key={`${d.id}-${d.title}-${d.price}-${d.condition}`}
+            key={`${d.id}-${d.title}-${d.price}-${d.condition}-${d.sku}`}
             draft={d}
             selected={!unticked.has(d.id)}
             disabled={posting}

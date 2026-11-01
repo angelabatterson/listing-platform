@@ -5,10 +5,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db";
-import { batches, channelListings, connections, itemImages, items, photos } from "@/db/schema";
+import { batches, channelListings, connections, itemImages, items, organizations, photos } from "@/db/schema";
 import { autoCategorizeForEbay } from "@/lib/ai/assist";
 import { AiError, askForJson, jpegBlock } from "@/lib/ai/client";
-import { batchSku, DRAFT_SYSTEM, draftSchema, draftToItem } from "@/lib/ai/draft";
+import { batchSku, draftSchema, draftSystem, draftToItem } from "@/lib/ai/draft";
 import { groupsToKeep, normalizeGroups, SORT_CHUNK, SORT_SYSTEM, sortSchema } from "@/lib/ai/sort";
 import { requireUser } from "@/lib/auth";
 import { draftProblem, listingProblem, recordAiDraft, writeProblem } from "@/lib/billing/access";
@@ -198,12 +198,18 @@ export async function draftItem(batchId: string, groupKey: number): Promise<Batc
   const overLimit = await draftProblem(user);
   if (overLimit) return { error: overLimit };
 
-  const draftPhotos = await readPhotos(group.slice(0, PHOTOS_FOR_DRAFT));
-  let fields: ReturnType<typeof draftToItem>;
+  const [draftPhotos, org] = await Promise.all([
+    readPhotos(group.slice(0, PHOTOS_FOR_DRAFT)),
+    db.query.organizations.findFirst({
+      where: eq(organizations.id, user.organizationId),
+      columns: { draftSettings: true },
+    }),
+  ]);
+  let drafted: ReturnType<typeof draftToItem>;
   try {
     const draft = await askForJson({
       schema: draftSchema,
-      system: DRAFT_SYSTEM,
+      system: draftSystem(org?.draftSettings),
       content: [
         ...draftPhotos.map(jpegBlock),
         { type: "text", text: "Write the listing for the item in these photos." },
@@ -211,18 +217,28 @@ export async function draftItem(batchId: string, groupKey: number): Promise<Batc
       effort: "medium",
       maxTokens: 16000,
     });
-    fields = draftToItem(draft);
+    drafted = draftToItem(draft, draftPhotos.length);
   } catch (err) {
     return { error: errorMessage(err) };
   }
   await recordAiDraft(user.organizationId);
+  const { longTitle, ownSku, skuPhoto, ...fields } = drafted;
 
+  const skuTaken = async (sku: string) =>
+    Boolean(
+      await db.query.items.findFirst({
+        where: and(eq(items.organizationId, user.organizationId), eq(items.sku, sku)),
+        columns: { id: true },
+      }),
+    );
   let sku = batchSku(batch.number, groupKey);
-  const taken = await db.query.items.findFirst({
-    where: and(eq(items.organizationId, user.organizationId), eq(items.sku, sku)),
-    columns: { id: true },
-  });
-  if (taken) sku = `${sku}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+  if (ownSku && !(await skuTaken(ownSku))) sku = ownSku;
+  else {
+    if (ownSku) fields.draftNotes.skuNote = `A photo shows SKU ${ownSku}, but another item already uses it, so this one got ${sku}.`;
+    if (await skuTaken(sku)) sku = `${sku}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+  }
+  // The photo of the SKU sticker is for the seller, not buyers.
+  const listingPhotos = group.filter((_, i) => i !== skuPhoto);
 
   const orgConnections = await db.query.connections.findMany({
     where: eq(connections.organizationId, user.organizationId),
@@ -241,7 +257,9 @@ export async function draftItem(batchId: string, groupKey: number): Promise<Batc
       .insert(items)
       .values({ ...fields, organizationId: user.organizationId, sku, quantity: 1, status: "draft", batchId })
       .returning({ id: items.id });
-    await tx.insert(itemImages).values(group.map((p, position) => ({ itemId: item.id, url: photoUrl(p.id), position })));
+    await tx
+      .insert(itemImages)
+      .values(listingPhotos.map((p, position) => ({ itemId: item.id, url: photoUrl(p.id), position })));
     await tx.update(photos).set({ itemId: item.id }).where(inArray(photos.id, group.map((p) => p.id)));
     const ready = orgConnections.filter(isConnectionReady);
     if (ready.length) {
@@ -250,7 +268,10 @@ export async function draftItem(batchId: string, groupKey: number): Promise<Batc
           itemId: item.id,
           connectionId: c.id,
           enabled: true,
-          overrides: c.marketplace === "etsy" ? { whenMade: fields.draftNotes.whenMade } : {},
+          overrides:
+            c.marketplace === "etsy"
+              ? { whenMade: fields.draftNotes.whenMade, ...(longTitle ? { title: longTitle } : {}) }
+              : {},
         })),
       );
     }
@@ -308,27 +329,77 @@ const quickEditSchema = z.object({
   title: z.string().trim().min(1, "Give the item a title").max(140, "Titles can be at most 140 characters"),
   price: z.string().refine((v) => Number(v) > 0, "Enter a price above zero"),
   condition: z.enum(EBAY_CONDITIONS.map((c) => c.value) as [string, ...string[]]),
+  sku: z.string().trim().min(1, "Give the item a SKU").max(50, "SKUs can be at most 50 characters"),
 });
 
-// Title, price and condition edits straight from the review board.
+// Title, price, condition and SKU edits straight from the review board.
 export async function quickEdit(
   itemId: string,
-  fields: { title: string; price: string; condition: string },
+  fields: { title: string; price: string; condition: string; sku: string },
 ): Promise<BatchActionResult> {
   const user = await requireUser();
   const parsed = quickEditSchema.safeParse(fields);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const [updated] = await db
-    .update(items)
-    .set({
-      title: parsed.data.title,
-      priceCents: Math.round(Number(parsed.data.price) * 100),
-      condition: parsed.data.condition,
+  const item = await db.query.items.findFirst({
+    where: and(eq(items.id, itemId), eq(items.organizationId, user.organizationId), eq(items.status, "draft")),
+    columns: { id: true, title: true, sku: true, batchId: true },
+  });
+  if (!item) return { error: "That item has already been posted. Edit it from its own page." };
+  if (parsed.data.sku !== item.sku) {
+    const taken = await db.query.items.findFirst({
+      where: and(eq(items.organizationId, user.organizationId), eq(items.sku, parsed.data.sku)),
+      columns: { id: true },
+    });
+    if (taken) return { error: `Another item already uses SKU ${parsed.data.sku}.` };
+  }
+  await db.transaction(async (tx) => {
+    await tx
+      .update(items)
+      .set({
+        title: parsed.data.title,
+        sku: parsed.data.sku,
+        priceCents: Math.round(Number(parsed.data.price) * 100),
+        condition: parsed.data.condition,
+      })
+      .where(eq(items.id, item.id));
+    // A new title replaces the AI's longer store titles too, so the seller's fix shows everywhere.
+    if (parsed.data.title !== item.title) {
+      const listings = await tx.query.channelListings.findMany({ where: eq(channelListings.itemId, item.id) });
+      for (const l of listings.filter((l) => l.overrides.title)) {
+        const overrides = { ...l.overrides };
+        delete overrides.title;
+        await tx.update(channelListings).set({ overrides }).where(eq(channelListings.id, l.id));
+      }
+    }
+  });
+  if (item.batchId) revalidatePath(`/batches/${item.batchId}`);
+  return {};
+}
+
+// Tick or untick one store for a draft, right from the review board.
+export async function setDraftStore(itemId: string, connectionId: string, enabled: boolean): Promise<BatchActionResult> {
+  const user = await requireUser();
+  const [item, connection] = await Promise.all([
+    db.query.items.findFirst({
+      where: and(eq(items.id, itemId), eq(items.organizationId, user.organizationId), eq(items.status, "draft")),
+      columns: { id: true, batchId: true, draftNotes: true },
+    }),
+    db.query.connections.findFirst({
+      where: and(eq(connections.id, connectionId), eq(connections.organizationId, user.organizationId)),
+    }),
+  ]);
+  if (!item || !connection) return { error: "That draft or store wasn't found." };
+  if (enabled && !isConnectionReady(connection)) return { error: "Finish this store's setup on the Stores page first." };
+  await db
+    .insert(channelListings)
+    .values({
+      itemId: item.id,
+      connectionId: connection.id,
+      enabled,
+      overrides: connection.marketplace === "etsy" && item.draftNotes.whenMade ? { whenMade: item.draftNotes.whenMade } : {},
     })
-    .where(and(eq(items.id, itemId), eq(items.organizationId, user.organizationId), eq(items.status, "draft")))
-    .returning({ batchId: items.batchId });
-  if (!updated) return { error: "That item has already been posted. Edit it from its own page." };
-  if (updated.batchId) revalidatePath(`/batches/${updated.batchId}`);
+    .onConflictDoUpdate({ target: [channelListings.itemId, channelListings.connectionId], set: { enabled } });
+  if (item.batchId) revalidatePath(`/batches/${item.batchId}`);
   return {};
 }
 

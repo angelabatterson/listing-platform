@@ -47,6 +47,14 @@ const timestamps = {
     .$onUpdate(() => new Date()),
 };
 
+// How the AI writes drafts for this account (Photo batches > Draft settings).
+export type DraftSettings = {
+  // The parts of a title in the seller's order, e.g. ["brand", "type", "size"]; see lib/ai/title-order.
+  titleOrder?: string[];
+  // Use the seller's own SKU when a photo shows one (a sticker or tag), and keep that photo off the listing.
+  skuFromPhoto?: boolean;
+};
+
 // A client account. Every row below belongs to exactly one organization.
 // The billing columns mirror the account's Stripe subscription (see lib/billing).
 export const organizations = pgTable("organizations", {
@@ -62,6 +70,7 @@ export const organizations = pgTable("organizations", {
   plan: text("plan"),
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
   cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  draftSettings: jsonb("draft_settings").$type<DraftSettings>().default({}).notNull(),
   ...timestamps,
 });
 
@@ -179,6 +188,8 @@ export type DraftNotes = {
   categoryQuery?: string;
   priceNote?: string;
   whenMade?: string;
+  // Set when a photo showed the seller's SKU but it couldn't be used.
+  skuNote?: string;
 };
 
 // A set of photos uploaded together. Its number gives drafted items their SKUs ("B12-3").

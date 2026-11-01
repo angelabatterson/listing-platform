@@ -10,7 +10,7 @@ export type ItemForReview = ItemWithImages & { listings: (ChannelListing & { con
 // the marketplaces, so it's quick enough to run for a whole batch on every view.
 export function postingProblems(item: ItemForReview): string[] {
   const enabled = item.listings.filter((l) => l.enabled);
-  if (enabled.length === 0) return ["Tick at least one store on the item page."];
+  if (enabled.length === 0) return ["Pick at least one store to post to."];
   if (item.quantity < 1) return ["Set the quantity to at least 1."];
   return enabled.flatMap(({ connection, ...listing }) => {
     const store = MARKETPLACE_LABELS[connection.marketplace];

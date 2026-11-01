@@ -15,7 +15,7 @@ vi.mock("@/lib/ai/client", async (original) => ({
   askForJson: (...args: unknown[]) => askForJson(...args),
 }));
 
-const { discardDraft, draftItem, postDraft, quickEdit, sortPhotos } = await import("@/app/(app)/batches/actions");
+const { discardDraft, draftItem, postDraft, quickEdit, setDraftStore, sortPhotos } = await import("@/app/(app)/batches/actions");
 
 const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
 
@@ -151,12 +151,13 @@ describe.runIf(process.env.TEST_DATABASE_URL)("drafting listings from a photo ba
 
     expect(await draftItem(batchId, 0)).toEqual({ error: "Those photos have already been drafted." });
 
-    expect(await quickEdit(item!.id, { title: "  ", price: "45", condition: "USED_GOOD" })).toEqual({
+    expect(await quickEdit(item!.id, { title: "  ", price: "45", condition: "USED_GOOD", sku: item!.sku })).toEqual({
       error: "Give the item a title",
     });
-    expect(await quickEdit(item!.id, { title: "Levi's trucker jacket", price: "39.50", condition: "USED_GOOD" })).toEqual({});
+    expect(await quickEdit(item!.id, { title: "Levi's trucker jacket", price: "39.50", condition: "USED_GOOD", sku: "MY-7" })).toEqual({});
     expect(await db.query.items.findFirst({ where: eq(items.id, item!.id) })).toMatchObject({
       title: "Levi's trucker jacket",
+      sku: "MY-7",
       priceCents: 3950,
       condition: "USED_GOOD",
     });
@@ -194,9 +195,52 @@ describe.runIf(process.env.TEST_DATABASE_URL)("drafting listings from a photo ba
     expect(syncItem).toHaveBeenCalledWith(user.organizationId, itemId);
     expect((await db.query.items.findFirst({ where: eq(items.id, itemId!) }))!.status).toBe("active");
     expect(await postDraft(itemId!)).toEqual({ error: "Already posted." });
-    expect(await quickEdit(itemId!, { title: "x", price: "1", condition: "NEW" })).toEqual({
+    expect(await quickEdit(itemId!, { title: "x", price: "1", condition: "NEW", sku: "Z" })).toEqual({
       error: "That item has already been posted. Edit it from its own page.",
     });
+  });
+
+  it("uses the seller's SKU from a photo, keeps that photo off the listing, and lets stores be picked", async () => {
+    await db.update(photos).set({ groupKey: 0 }).where(eq(photos.batchId, batchId));
+    const mug = {
+      title: "Mug",
+      longTitle: "Mug",
+      description: "A mug.",
+      condition: "USED_GOOD",
+      brand: null,
+      itemSpecifics: [],
+      categoryQuery: "mug",
+      suggestedPrice: 12,
+      priceNote: "",
+      whenMade: "2020_2026",
+      skuOnPhoto: "BIN4-017",
+      skuPhoto: 3,
+    };
+    askForJson.mockResolvedValueOnce(mug).mockResolvedValueOnce({ aspects: [] });
+    const { itemId } = await draftItem(batchId, 0);
+    const item = await db.query.items.findFirst({ where: eq(items.id, itemId!), with: { images: true } });
+    expect(item!.sku).toBe("BIN4-017");
+    const third = (await db.select().from(photos).where(eq(photos.batchId, batchId)).orderBy(photos.position))[2];
+    expect(item!.images).toHaveLength(2);
+    expect(item!.images.map((i) => i.url).some((u) => u.includes(third.id))).toBe(false);
+
+    // A second item showing the same SKU keeps its batch SKU and says why.
+    await discardDraft(itemId!);
+    await db.insert(items).values({ organizationId: user.organizationId, sku: "BIN4-017", title: "Other", priceCents: 100 });
+    askForJson.mockResolvedValueOnce(mug).mockResolvedValueOnce({ aspects: [] });
+    const again = await draftItem(batchId, 0);
+    const second = await db.query.items.findFirst({ where: eq(items.id, again.itemId!) });
+    expect(second!.sku).toBe("B7-1");
+    expect(second!.draftNotes.skuNote).toContain("BIN4-017");
+    expect(await quickEdit(second!.id, { title: "Mug", price: "12", condition: "USED_GOOD", sku: "BIN4-017" })).toEqual({
+      error: "Another item already uses SKU BIN4-017.",
+    });
+
+    expect(await setDraftStore(second!.id, ebayId, false)).toEqual({});
+    const [listing] = await db.select().from(channelListings).where(eq(channelListings.itemId, second!.id));
+    expect(listing.enabled).toBe(false);
+    expect(await setDraftStore(second!.id, ebayId, true)).toEqual({});
+    expect((await db.select().from(channelListings).where(eq(channelListings.itemId, second!.id)))[0].enabled).toBe(true);
   });
 
   it("reports an AI failure without creating an item", async () => {

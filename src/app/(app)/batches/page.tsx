@@ -3,6 +3,7 @@ import Link from "next/link";
 import { db } from "@/db";
 import { batches, items, photos } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { DeleteBatchButton } from "@/components/delete-batch-button";
 import { createBatch } from "./actions";
 
 export default async function BatchesPage() {
@@ -40,6 +41,7 @@ export default async function BatchesPage() {
               <th className="px-4 py-2">Started</th>
               <th className="px-4 py-2">Photos</th>
               <th className="px-4 py-2">Items drafted</th>
+              <th className="px-4 py-2"><span className="sr-only">Delete</span></th>
             </tr>
           </thead>
           <tbody>
@@ -51,6 +53,9 @@ export default async function BatchesPage() {
                 <td className="px-4 py-2">{b.createdAt.toLocaleDateString("en-US")}</td>
                 <td className="px-4 py-2">{b.photoCount}</td>
                 <td className="px-4 py-2">{b.itemCount}</td>
+                <td className="px-4 py-2 text-right">
+                  <DeleteBatchButton batchId={b.id} number={b.number} itemCount={b.itemCount} compact />
+                </td>
               </tr>
             ))}
           </tbody>

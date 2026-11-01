@@ -6,6 +6,7 @@ import { useState } from "react";
 import { discardDraft, postDraft, quickEdit } from "@/app/(app)/batches/actions";
 import { EBAY_CONDITIONS } from "@/lib/marketplaces/ebay/mapping";
 import { eachLimited } from "@/lib/photos/resize";
+import { PhotoViewer } from "./photo-viewer";
 
 export type ReviewDraft = {
   id: string;
@@ -14,6 +15,8 @@ export type ReviewDraft = {
   price: string;
   condition: string;
   thumbUrl: string | null;
+  // Every photo on the item, full size, in order.
+  photoUrls: string[];
   priceNote?: string;
   problems: string[];
 };
@@ -30,6 +33,7 @@ function DraftRow(props: {
 }) {
   const d = props.draft;
   const [values, setValues] = useState({ title: d.title, price: d.price, condition: d.condition });
+  const [zoom, setZoom] = useState<number | null>(null);
   const dirty = values.title !== d.title || values.price !== d.price || values.condition !== d.condition;
 
   async function save(next = values) {
@@ -49,11 +53,19 @@ function DraftRow(props: {
         disabled={!ready || props.disabled}
         onChange={(e) => props.onSelect(e.currentTarget.checked)}
       />
-      {d.thumbUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element -- signed thumbnails, already small
-        <img src={d.thumbUrl} alt="" className="h-20 w-20 flex-none rounded object-cover" />
+      {d.thumbUrl && d.photoUrls.length > 0 ? (
+        <button type="button" className="flex flex-none flex-col items-center gap-1 text-xs text-zinc-600" onClick={() => setZoom(0)}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- signed thumbnails, already small */}
+          <img src={d.thumbUrl} alt="" className="h-20 w-20 rounded object-cover" />
+          <span className="underline">
+            See {d.photoUrls.length === 1 ? "photo" : `all ${d.photoUrls.length} photos`}
+          </span>
+        </button>
       ) : (
         <div className="h-20 w-20 flex-none rounded bg-zinc-100" />
+      )}
+      {zoom !== null && (
+        <PhotoViewer urls={d.photoUrls} index={zoom} onIndex={setZoom} onClose={() => setZoom(null)} />
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">

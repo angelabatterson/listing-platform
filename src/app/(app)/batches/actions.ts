@@ -126,22 +126,62 @@ export async function movePhoto(photoId: string, target: string) {
     where: and(eq(photos.id, photoId), eq(photos.organizationId, user.organizationId), isNull(photos.itemId)),
     columns: { id: true, batchId: true },
   });
-  if (!photo) return;
+  if (!photo?.batchId) return;
   const groupKey = target === "unsorted" ? null : target === "new" ? await nextGroupKey(photo.batchId) : Number(target);
   if (groupKey !== null && !Number.isInteger(groupKey)) return;
   await db.update(photos).set({ groupKey }).where(eq(photos.id, photo.id));
   revalidatePath(`/batches/${photo.batchId}`);
 }
 
-export async function deletePhoto(photoId: string) {
+// Delete photos that haven't become an item yet: one, or several picked on the board.
+export async function deletePhotos(photoIds: string[]) {
   const user = await requireUser();
-  const [deleted] = await db
+  const ids = z.array(z.uuid()).max(1000).safeParse(photoIds);
+  if (!ids.success || ids.data.length === 0) return;
+  const deleted = await db
     .delete(photos)
-    .where(and(eq(photos.id, photoId), eq(photos.organizationId, user.organizationId), isNull(photos.itemId)))
-    .returning({ batchId: photos.batchId });
-  if (!deleted) return;
-  await deletePhotoFiles(user.organizationId, [photoId]);
-  revalidatePath(`/batches/${deleted.batchId}`);
+    .where(and(inArray(photos.id, ids.data), eq(photos.organizationId, user.organizationId), isNull(photos.itemId)))
+    .returning({ id: photos.id, batchId: photos.batchId });
+  if (!deleted.length) return;
+  await deletePhotoFiles(user.organizationId, deleted.map((d) => d.id));
+  for (const batchId of new Set(deleted.map((d) => d.batchId))) if (batchId) revalidatePath(`/batches/${batchId}`);
+}
+
+// Delete a whole batch. Photos that haven't become an item go with it; items made
+// from the batch, and the photos they use, stay in Inventory.
+export async function deleteBatch(batchId: string) {
+  const user = await requireUser();
+  const batch = await db.query.batches.findFirst({
+    where: and(eq(batches.id, batchId), eq(batches.organizationId, user.organizationId)),
+    columns: { id: true },
+  });
+  if (!batch) return;
+  const removed = await db.transaction(async (tx) => {
+    const loose = await tx
+      .select({ id: photos.id })
+      .from(photos)
+      .where(and(eq(photos.batchId, batch.id), isNull(photos.itemId)));
+    // A photo still linked from an item (say, after a background edit) is kept.
+    const linked = loose.length
+      ? new Set(
+          (
+            await tx
+              .select({ url: itemImages.url })
+              .from(itemImages)
+              .innerJoin(items, eq(items.id, itemImages.itemId))
+              .where(and(eq(items.organizationId, user.organizationId), inArray(itemImages.url, loose.map((p) => photoUrl(p.id)))))
+          ).map((r) => r.url),
+        )
+      : new Set<string>();
+    const unused = loose.filter((p) => !linked.has(photoUrl(p.id))).map((p) => p.id);
+    if (unused.length) await tx.delete(photos).where(inArray(photos.id, unused));
+    await tx.delete(batches).where(eq(batches.id, batch.id));
+    return unused;
+  });
+  if (removed.length) await deletePhotoFiles(user.organizationId, removed);
+  revalidatePath("/batches");
+  revalidatePath("/items");
+  redirect("/batches");
 }
 
 // Write one draft listing from one group of photos and save it as a draft item.

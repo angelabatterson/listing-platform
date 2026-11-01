@@ -117,6 +117,24 @@ describe.runIf(process.env.TEST_DATABASE_URL)("the List on [store] pop-up", () =
     expect((await listing())!.overrides).toMatchObject({ title: "Depop title", imageUrls: ["https://img.example/1.jpg"] });
   });
 
+  it("only sends changes to the stores on Save + Sync, not on Save", async () => {
+    const fields = {
+      title: "Jacket",
+      sku: "J-1",
+      description: "Main description",
+      price: "50",
+      quantity: "1",
+      condition: "USED_GOOD",
+      status: "active",
+      [`list_${depopId}`]: "on",
+    };
+    syncItem.mockClear();
+    await saveItem(itemId, undefined, form({ ...fields, intent: "save" }));
+    expect(syncItem).not.toHaveBeenCalled();
+    await saveItem(itemId, undefined, form({ ...fields, intent: "sync" }));
+    expect(syncItem).toHaveBeenCalledWith(user.organizationId, itemId);
+  });
+
   it("takes the item off the store", async () => {
     await db.insert(channelListings).values({ itemId, connectionId: depopId, enabled: true, status: "listed" });
     expect(await removeFromStore(itemId, depopId)).toEqual({ ok: true, message: "Taken off this store." });

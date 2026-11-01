@@ -151,9 +151,11 @@ export async function saveItem(
     return savedId;
   });
 
-  await syncItem(user.organizationId, id);
+  // "Save" keeps the changes in Relistic only; "Save + Sync" also updates the stores.
+  const sync = formData.get("intent") !== "save";
+  if (sync) await syncItem(user.organizationId, id);
   revalidatePath("/items");
-  redirect(`/items/${id}?saved=1`);
+  redirect(`/items/${id}?saved=${sync ? "1" : "local"}`);
 }
 
 export async function archiveItem(itemId: string) {

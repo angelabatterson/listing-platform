@@ -27,9 +27,12 @@ export default async function BatchesPage() {
           <h1 className="text-2xl font-semibold">Photo batches</h1>
           <p className="text-sm text-zinc-600">Upload a pile of photos and the AI turns them into draft listings.</p>
         </div>
-        <form action={createBatch}>
-          <button className="btn">New batch</button>
-        </form>
+        <div className="flex items-center gap-2">
+          <Link href="/batches/settings" className="btn-secondary">Draft settings</Link>
+          <form action={createBatch}>
+            <button className="btn">New batch</button>
+          </form>
+        </div>
       </div>
       {rows.length === 0 ? (
         <div className="card text-zinc-600">No batches yet. Start one to upload photos.</div>

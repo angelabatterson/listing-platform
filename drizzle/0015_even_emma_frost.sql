@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ADD COLUMN "draft_settings" jsonb DEFAULT '{}'::jsonb NOT NULL;

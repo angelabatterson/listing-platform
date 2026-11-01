@@ -6,12 +6,14 @@ import { DeleteBatchButton } from "@/components/delete-batch-button";
 import { PhotoUploader } from "@/components/photo-uploader";
 import { ReviewBoard } from "@/components/review-board";
 import { db } from "@/db";
-import { batches, items, photos } from "@/db/schema";
+import { batches, connections, items, photos } from "@/db/schema";
 import { aiIsConfigured } from "@/lib/ai/client";
 import { batchSku } from "@/lib/ai/draft";
 import { requireUser } from "@/lib/auth";
 import { getAccess } from "@/lib/billing/access";
+import { byStoreOrder, MARKETPLACE_LABELS } from "@/lib/marketplaces/labels";
 import { formatPrice } from "@/lib/marketplaces/ebay/mapping";
+import { isConnectionReady } from "@/lib/stores";
 import { photoUrl } from "@/lib/photos/links";
 import { postingProblems } from "@/lib/review";
 
@@ -26,7 +28,7 @@ export default async function BatchPage(props: PageProps<"/batches/[id]">) {
   });
   if (!batch) notFound();
 
-  const [photoRows, drafted, access] = await Promise.all([
+  const [photoRows, drafted, access, orgStores] = await Promise.all([
     db
       .select({ id: photos.id, groupKey: photos.groupKey, itemId: photos.itemId, fileName: photos.fileName })
       .from(photos)
@@ -38,6 +40,7 @@ export default async function BatchPage(props: PageProps<"/batches/[id]">) {
       with: { images: true, listings: { with: { connection: true } } },
     }),
     getAccess(user),
+    db.query.connections.findMany({ where: eq(connections.organizationId, user.organizationId) }),
   ]);
 
   const open = photoRows.filter((p) => !p.itemId);
@@ -91,6 +94,13 @@ export default async function BatchPage(props: PageProps<"/batches/[id]">) {
               thumbUrl: thumb ? photoUrl(thumb, "thumb") : null,
               photoUrls: [...item.images].sort((a, b) => a.position - b.position).map((i) => i.url),
               priceNote: item.draftNotes.priceNote,
+              skuNote: item.draftNotes.skuNote,
+              stores: byStoreOrder(orgStores).map((c) => ({
+                connectionId: c.id,
+                label: MARKETPLACE_LABELS[c.marketplace],
+                enabled: item.listings.some((l) => l.connectionId === c.id && l.enabled),
+                ready: isConnectionReady(c),
+              })),
               problems: postingProblems(item),
             };
           })}

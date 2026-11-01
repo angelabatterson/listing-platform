@@ -16,7 +16,7 @@ describe("checking a draft before posting", () => {
 
   it("needs at least one ticked store and some stock", () => {
     expect(postingProblems(draft([{ ...makeListing({ enabled: false }), connection: ebay }]))).toEqual([
-      "Tick at least one store on the item page.",
+      "Pick at least one store to post to.",
     ]);
     expect(postingProblems(draft([{ ...makeListing(), connection: ebay }], { quantity: 0 }))).toEqual([
       "Set the quantity to at least 1.",

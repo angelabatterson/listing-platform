@@ -68,6 +68,7 @@ describe.runIf(process.env.TEST_DATABASE_URL)("listing inventory", () => {
       all: 4,
       listed: 2,
       drafts: 1,
+      scheduled: 0,
       sold: 1,
       delisted: 0,
       favorites: 0,

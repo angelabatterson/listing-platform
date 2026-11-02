@@ -1,7 +1,7 @@
 import { and, count, eq, ne } from "drizzle-orm";
 import Link from "next/link";
 import { FilterForm } from "@/components/filter-form";
-import { FailedBanner, FavoriteStar, RowField } from "@/components/inventory-row";
+import { FailedBanner, FavoriteStar, RowField, ScheduledBadge } from "@/components/inventory-row";
 import { db } from "@/db";
 import { channelListings, connections, items, type ChannelListing, type Connection } from "@/db/schema";
 import { StoreCell, type StoreCellListing } from "@/components/store-cell";
@@ -179,6 +179,9 @@ export default async function ItemsPage(props: PageProps<"/items">) {
                         <div>
                           <Link href={`/items/${item.id}`} className="font-medium hover:underline">{item.title}</Link>
                           {item.status === "draft" && <span className="ml-2 text-xs text-zinc-500">Draft</span>}
+                          {item.status === "draft" && item.scheduledAt && (
+                            <ScheduledBadge itemId={item.id} at={item.scheduledAt.toISOString()} />
+                          )}
                           {item.status === "sold_out" && <span className="ml-2 text-xs text-zinc-500">Sold</span>}
                           <RowField
                             itemId={item.id}

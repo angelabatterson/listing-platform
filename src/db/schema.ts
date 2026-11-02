@@ -232,6 +232,8 @@ export const items = pgTable(
     // The seller's own notes, like "Missing SKU and weight". Never sent to a store.
     notes: text("notes").notNull().default(""),
     favorite: boolean("favorite").notNull().default(false),
+    // A draft waiting to be posted automatically at this time (Photo batches > Schedule).
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
     draftNotes: jsonb("draft_notes").$type<DraftNotes>().default({}).notNull(),
     ...timestamps,
   },
@@ -355,6 +357,15 @@ export const sales = pgTable(
     // The store's id for the buyer (eBay username, Etsy user id), for repeat buyers.
     buyerId: text("buyer_id"),
     buyerName: text("buyer_name"),
+    // The seller's own figures for the profit table (Sales page). Null means "work it out":
+    // cost of goods from the item, shipping cost from a Relistic label, the rest as zero.
+    taxCents: integer("tax_cents"),
+    refundCents: integer("refund_cents"),
+    shippingCostCents: integer("shipping_cost_cents"),
+    costCents: integer("cost_cents"),
+    otherCostCents: integer("other_cost_cents"),
+    // Typed in or imported by the seller, rather than found on the store.
+    manual: boolean("manual").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [

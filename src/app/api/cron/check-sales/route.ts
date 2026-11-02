@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { runEbayAutomations } from "@/lib/automations/ebay";
 import { moveDatabasePhotosToFiles, removeOrphanPhotoFiles } from "@/lib/photos/store";
 import { checkAllStoresForSales } from "@/lib/sync/sales";
+import { postScheduledDrafts } from "@/lib/sync/scheduled";
 
 // Called on a schedule (see vercel.json). Vercel sends "Authorization: Bearer $CRON_SECRET".
 export async function GET(request: NextRequest) {
@@ -24,5 +25,9 @@ export async function GET(request: NextRequest) {
     console.error("Automations failed", err);
     return { error: true };
   });
-  return NextResponse.json({ checked: results.length, results, photos, automations });
+  const scheduled = await postScheduledDrafts().catch((err: unknown) => {
+    console.error("Scheduled posts failed", err);
+    return { error: true };
+  });
+  return NextResponse.json({ checked: results.length, results, photos, automations, scheduled });
 }

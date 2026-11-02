@@ -102,6 +102,7 @@ export default async function BatchPage(props: PageProps<"/batches/[id]">) {
                 ready: isConnectionReady(c),
               })),
               problems: postingProblems(item),
+              scheduledAt: item.scheduledAt?.toISOString() ?? null,
             };
           })}
         />

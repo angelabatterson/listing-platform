@@ -35,7 +35,7 @@ async function matchItem(connection: Connection, line: SaleLine): Promise<string
 
 // Record sold lines from one store, lower the master quantity, and push the change to
 // every other store. Safe to call twice with the same lines: each line counts once.
-export async function recordSales(connection: Connection, lines: SaleLine[]): Promise<number> {
+export async function recordSales(connection: Connection, lines: SaleLine[], opts: { manual?: boolean } = {}): Promise<number> {
   const store = MARKETPLACE_LABELS[connection.marketplace];
   let recorded = 0;
   for (const line of lines) {
@@ -59,6 +59,7 @@ export async function recordSales(connection: Connection, lines: SaleLine[]): Pr
         feesEstimated: line.feesEstimated ?? false,
         buyerId: line.buyerId ?? null,
         buyerName: line.buyerName ?? null,
+        manual: opts.manual ?? false,
       })
       .onConflictDoNothing()
       .returning({ id: sales.id });

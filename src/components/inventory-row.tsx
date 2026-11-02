@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { cancelSchedule } from "@/app/(app)/batches/actions";
 import { discardFailed, retryFailed, saveRowDetails, setFavorite } from "@/app/(app)/items/inventory-actions";
+import { LocalTime } from "./local-time";
 
 // The favorite star at the start of an Inventory row.
 export function FavoriteStar(props: { itemId: string; favorite: boolean }) {
@@ -118,5 +120,29 @@ export function FailedBanner(props: { count: number; href: string }) {
         </button>
       </span>
     </div>
+  );
+}
+
+// "Posts Tue, Nov 4, 9:00 AM" on a scheduled draft, with a way to cancel.
+export function ScheduledBadge(props: { itemId: string; at: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  return (
+    <span className="ml-2 inline-flex flex-wrap items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-800">
+      Posts <LocalTime iso={props.at} />
+      <button
+        type="button"
+        disabled={pending}
+        className="underline disabled:opacity-50"
+        onClick={() =>
+          startTransition(async () => {
+            await cancelSchedule(props.itemId);
+            router.refresh();
+          })
+        }
+      >
+        Cancel
+      </button>
+    </span>
   );
 }

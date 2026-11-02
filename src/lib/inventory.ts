@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, count, desc, eq, ilike, inArray, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNotNull, ne, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { channelListings, items } from "@/db/schema";
 import { AUTO_SKU_PATTERN } from "@/lib/sku";
@@ -8,6 +8,7 @@ export const VIEWS = {
   all: "All",
   listed: "Listed",
   drafts: "Drafts",
+  scheduled: "Scheduled",
   sold: "Sold",
   delisted: "Delisted",
   favorites: "Favorites",
@@ -92,6 +93,7 @@ const viewCondition: Record<View, SQL> = {
   all: ne(items.status, "archived"),
   listed: eq(items.status, "active"),
   drafts: eq(items.status, "draft"),
+  scheduled: and(eq(items.status, "draft"), isNotNull(items.scheduledAt))!,
   sold: eq(items.status, "sold_out"),
   // Taken off its stores but not sold: something ended, and nothing is up or on its way.
   delisted: and(
@@ -133,6 +135,9 @@ const ORDER: Record<Sort, SQL[]> = {
   title: [asc(sql`lower(${items.title})`)],
 };
 
+// Scheduled drafts in the order they'll go up.
+const SCHEDULED_ORDER = [asc(items.scheduledAt)];
+
 // Duplicates sit next to each other, so the seller can compare them.
 const DUPLICATE_ORDER = [asc(sql`lower(btrim(${items.title}))`), asc(items.createdAt)];
 
@@ -144,7 +149,7 @@ export async function listInventory(orgId: string, f: InventoryFilters) {
       .select({ id: items.id })
       .from(items)
       .where(where)
-      .orderBy(...(f.view === "duplicates" ? DUPLICATE_ORDER : ORDER[f.sort]), asc(items.id))
+      .orderBy(...(f.view === "duplicates" ? DUPLICATE_ORDER : f.view === "scheduled" ? SCHEDULED_ORDER : ORDER[f.sort]), asc(items.id))
       .limit(PAGE_SIZE)
       .offset((f.page - 1) * PAGE_SIZE),
     db.select({ total: count() }).from(items).where(where),
@@ -164,8 +169,9 @@ export async function viewCounts(orgId: string, f: InventoryFilters): Promise<Re
   const narrowed = narrowing(orgId, f);
   const countOf = async (view: View) =>
     (await db.select({ n: count() }).from(items).where(and(...narrowed, viewCondition[view])))[0].n;
-  const [rows, delisted, favorites, duplicates] = await Promise.all([
+  const [rows, scheduled, delisted, favorites, duplicates] = await Promise.all([
     db.select({ status: items.status, n: count() }).from(items).where(and(...narrowed)).groupBy(items.status),
+    countOf("scheduled"),
     countOf("delisted"),
     countOf("favorites"),
     countOf("duplicates"),
@@ -175,6 +181,7 @@ export async function viewCounts(orgId: string, f: InventoryFilters): Promise<Re
     all: by("active") + by("draft") + by("sold_out"),
     listed: by("active"),
     drafts: by("draft"),
+    scheduled,
     sold: by("sold_out"),
     delisted,
     favorites,

@@ -417,10 +417,67 @@ export async function postDraft(itemId: string): Promise<BatchActionResult & { f
   const problems = postingProblems(item);
   if (problems.length) return { error: problems.join(" ") };
 
-  await db.update(items).set({ status: "active" }).where(eq(items.id, item.id));
+  await db.update(items).set({ status: "active", scheduledAt: null }).where(eq(items.id, item.id));
   const outcomes = await syncItem(user.organizationId, item.id);
   if (item.batchId) revalidatePath(`/batches/${item.batchId}`);
   revalidatePath("/items");
   const failed = outcomes.filter((o) => !o.ok).map((o) => o.message ?? o.store);
   return { itemId: item.id, failed: failed.length ? failed : undefined };
+}
+
+const MAX_SCHEDULE = 500;
+const YEAR_MS = 366 * 86_400_000;
+
+// Post drafts later: each one goes up at its own time (worked out in the browser, in the
+// seller's time zone). The cron job posts them when the time comes.
+export async function scheduleDrafts(plan: { itemId: string; at: string }[]): Promise<BatchActionResult & { scheduled?: number; problems?: string[] }> {
+  const user = await requireUser();
+  if (!Array.isArray(plan) || plan.length === 0) return { error: "Pick at least one draft to schedule." };
+  if (plan.length > MAX_SCHEDULE) return { error: `Schedule at most ${MAX_SCHEDULE} drafts at a time.` };
+  const now = Date.now();
+  const times = new Map<string, Date>();
+  for (const p of plan) {
+    const at = new Date(typeof p?.at === "string" ? p.at : NaN);
+    if (!z.uuid().safeParse(p?.itemId).success || Number.isNaN(at.getTime())) return { error: "Something in the schedule wasn't right. Reload and try again." };
+    if (at.getTime() < now - 5 * 60_000) return { error: "Pick a start time that hasn't passed yet." };
+    if (at.getTime() > now + YEAR_MS) return { error: "Pick a time within the next year." };
+    times.set(p.itemId, at);
+  }
+  const limit = await listingProblem(user, times.size);
+  if (limit) return { error: limit };
+
+  const drafts = await db.query.items.findMany({
+    where: and(eq(items.organizationId, user.organizationId), inArray(items.id, [...times.keys()])),
+    with: { images: true, listings: { with: { connection: true } } },
+  });
+  const problems: string[] = [];
+  let scheduled = 0;
+  for (const item of drafts) {
+    if (item.status !== "draft") continue;
+    const issues = postingProblems(item);
+    if (issues.length) {
+      problems.push(`${item.title}: ${issues.join(" ")}`);
+      continue;
+    }
+    await db.update(items).set({ scheduledAt: times.get(item.id)! }).where(eq(items.id, item.id));
+    scheduled++;
+  }
+  for (const batchId of new Set(drafts.map((d) => d.batchId).filter(Boolean))) revalidatePath(`/batches/${batchId}`);
+  revalidatePath("/items");
+  return { scheduled, problems: problems.length ? problems : undefined };
+}
+
+export async function cancelSchedule(itemId: string): Promise<BatchActionResult> {
+  const user = await requireUser();
+  if (!z.uuid().safeParse(itemId).success) return { error: "Item not found." };
+  const [item] = await db
+    .update(items)
+    .set({ scheduledAt: null })
+    .where(and(eq(items.id, itemId), eq(items.organizationId, user.organizationId)))
+    .returning({ id: items.id, batchId: items.batchId });
+  if (!item) return { error: "Item not found." };
+  if (item.batchId) revalidatePath(`/batches/${item.batchId}`);
+  revalidatePath("/items");
+  revalidatePath(`/items/${item.id}`);
+  return {};
 }

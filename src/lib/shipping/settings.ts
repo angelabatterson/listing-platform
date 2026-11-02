@@ -53,6 +53,7 @@ export async function ordersToShip(orgId: string, now = new Date()) {
     .where(
       and(
         eq(sales.organizationId, orgId),
+        eq(sales.manual, false),
         gte(sales.soldAt, new Date(now.getTime() - SHIP_WINDOW_DAYS * 86_400_000)),
         sql`not exists (${labelled})`,
       ),

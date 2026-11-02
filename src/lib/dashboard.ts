@@ -40,23 +40,26 @@ function inRange(orgId: string, from: Date | null, to: Date | null): SQL {
   )!;
 }
 
-// Profit is item sales less store fees and what the seller paid. Shipping charged to
-// the buyer isn't counted, since the label cost isn't known yet.
+// Profit is item sales less refunds, store fees, what the seller paid and any other costs
+// typed on the Sales page. Shipping charged to the buyer isn't counted, since it pays
+// for the label. A cost typed on the sale wins over the item's cost.
 const totals = {
   lines: sql<number>`count(*)::int`,
   units: sql<number>`coalesce(sum(${sales.quantity}), 0)::int`,
   sales: sql<number>`coalesce(sum(${sales.priceCents}), 0)::int`,
   shipping: sql<number>`coalesce(sum(${sales.shippingCents}), 0)::int`,
   fees: sql<number>`coalesce(sum(${sales.feesCents}), 0)::int`,
-  cost: sql<number>`coalesce(sum(${items.costCents} * ${sales.quantity}), 0)::int`,
+  cost: sql<number>`coalesce(sum(coalesce(${sales.costCents}, ${items.costCents} * ${sales.quantity})), 0)::int`,
+  refunds: sql<number>`coalesce(sum(${sales.refundCents}), 0)::int`,
+  other: sql<number>`coalesce(sum(${sales.otherCostCents}), 0)::int`,
   unpriced: sql<number>`count(*) filter (where ${sales.priceCents} is null)::int`,
-  uncosted: sql<number>`count(*) filter (where ${items.costCents} is null)::int`,
+  uncosted: sql<number>`count(*) filter (where ${sales.costCents} is null and ${items.costCents} is null)::int`,
   estimatedFees: sql<number>`count(*) filter (where ${sales.feesEstimated})::int`,
 };
 
 export type Totals = { [K in keyof typeof totals]: number } & { profit: number };
 
-const withProfit = <T extends Omit<Totals, "profit">>(row: T) => ({ ...row, profit: row.sales - row.fees - row.cost });
+const withProfit = <T extends Omit<Totals, "profit">>(row: T) => ({ ...row, profit: row.sales - row.refunds - row.fees - row.cost - row.other });
 
 export async function salesTotals(orgId: string, from: Date | null, to: Date | null): Promise<Totals> {
   const [row] = await db
@@ -163,7 +166,7 @@ export async function recentSales(orgId: string, limit = 10) {
       quantity: sales.quantity,
       priceCents: sales.priceCents,
       feesCents: sales.feesCents,
-      costCents: items.costCents,
+      costCents: sql<number | null>`coalesce(${sales.costCents}, ${items.costCents} * ${sales.quantity})`,
       marketplace: connections.marketplace,
       buyerName: sales.buyerName,
     })

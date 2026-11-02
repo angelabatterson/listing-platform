@@ -77,7 +77,7 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
 
   const notes = [
     t.uncosted > 0 &&
-      `${t.uncosted === 1 ? "1 sale has" : `${t.uncosted} sales have`} no "What you paid" amount, so profit counts ${t.uncosted === 1 ? "it" : "them"} as free. Add it on the item to make profit exact.`,
+      `${t.uncosted === 1 ? "1 sale has" : `${t.uncosted} sales have`} no "What you paid" amount, so profit counts ${t.uncosted === 1 ? "it" : "them"} as free. Add it on the item or the Sales page to make profit exact.`,
     t.estimatedFees > 0 && "Etsy doesn't share its fees with apps, so Etsy fees are estimated from its standard US rates.",
     t.unpriced > 0 && `${t.unpriced} older ${t.unpriced === 1 ? "sale was" : "sales were"} recorded before prices were tracked and count as $0.`,
   ].filter(Boolean) as string[];
@@ -115,7 +115,12 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
           <Tile label="Profit" value={money(t.profit)} tone={t.profit < 0 ? "bad" : t.profit > 0 ? "good" : undefined} />
         </div>
         <p className="mt-2 text-xs text-zinc-500">
-          Profit is sales minus store fees and what you paid for the items. Shipping isn&apos;t included yet.
+          Profit is sales minus refunds, store fees, what you paid for the items and other costs. For each sale&apos;s
+          shipping and label costs, see the{" "}
+          <Link href="/sales" className="underline">
+            Sales page
+          </Link>
+          .
         </p>
         {notes.length > 0 && (
           <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-zinc-500">
@@ -197,7 +202,7 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
               <tbody>
                 {recent.map((s) => {
                   const profit =
-                    s.priceCents === null ? null : s.priceCents - (s.feesCents ?? 0) - (s.costCents ?? 0) * s.quantity;
+                    s.priceCents === null ? null : s.priceCents - (s.feesCents ?? 0) - (s.costCents ?? 0);
                   return (
                     <tr key={s.id} className="border-t border-zinc-100">
                       <td className="whitespace-nowrap px-4 py-2 text-zinc-500">{shortDate(s.soldAt)}</td>

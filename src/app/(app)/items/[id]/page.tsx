@@ -4,8 +4,7 @@ import { ItemForm } from "@/components/item-form";
 import { db } from "@/db";
 import { connections, items } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
-import { formatPrice } from "@/lib/marketplaces/ebay/mapping";
-import { formatSpecifics } from "@/lib/specifics";
+import { itemFormValues } from "@/lib/item-form-values";
 import { storeLabel, storeOptions } from "@/lib/stores";
 import { archiveItem, resyncItem, saveItem } from "../actions";
 
@@ -106,23 +105,7 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
         itemId={item.id}
         submitLabel="Save + Sync"
         stores={storeOptions(conns, item.listings)}
-        values={{
-          title: item.title,
-          sku: item.sku,
-          description: item.description,
-          price: formatPrice(item.priceCents),
-          cost: item.costCents === null ? "" : formatPrice(item.costCents),
-          quantity: item.quantity,
-          condition: item.condition,
-          brand: item.brand ?? "",
-          tags: item.tags.join(", "),
-          notes: item.notes,
-          status: item.status === "active" ? "active" : "draft",
-          imageUrls: images.map((i) => i.url).join("\n"),
-          specifics: formatSpecifics(item.attributes),
-          categoryHint: item.draftNotes.categoryQuery,
-          skuLocked: item.listings.some((l) => l.remoteOfferId || l.remoteListingId),
-        }}
+        values={itemFormValues(item)}
       />
     </div>
   );

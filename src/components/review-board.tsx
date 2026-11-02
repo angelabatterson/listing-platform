@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { itemFormData, saveItem, type ItemFormState } from "@/app/(app)/items/actions";
+import { ItemForm } from "./item-form";
 import { cancelSchedule, discardDraft, postDraft, quickEdit, scheduleDrafts, setDraftStore } from "@/app/(app)/batches/actions";
 import { EBAY_CONDITIONS } from "@/lib/marketplaces/ebay/mapping";
 import { eachLimited } from "@/lib/photos/resize";
@@ -43,6 +45,7 @@ function DraftRow(props: {
   const [values, setValues] = useState(saved);
   const [zoom, setZoom] = useState<number | null>(null);
   const [storeBusy, setStoreBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   const same = (a: typeof saved) => (Object.keys(saved) as (keyof typeof saved)[]).every((k) => a[k] === saved[k]);
   const dirty = !same(values);
 
@@ -141,7 +144,15 @@ function DraftRow(props: {
               <option key={c.value} value={c.value}>{c.label}</option>
             ))}
           </select>
-          <Link href={`/items/${d.id}`} className="underline">Edit everything</Link>
+          <button
+            type="button"
+            className="underline"
+            aria-expanded={editing}
+            disabled={props.disabled}
+            onClick={() => setEditing((v) => !v)}
+          >
+            {editing ? "Hide full edit" : "Edit everything"}
+          </button>
           <form action={discardDraft.bind(null, d.id)}>
             <button className="text-zinc-600 underline" disabled={props.disabled}>Discard and redo</button>
           </form>
@@ -185,8 +196,41 @@ function DraftRow(props: {
             {props.status.kind === "posting" ? "Posting…" : props.status.text}
           </p>
         )}
+        {editing && <DraftEditor itemId={d.id} onSaved={() => props.onSaved()} onClose={() => setEditing(false)} />}
       </div>
     </li>
+  );
+}
+
+// The whole item form, opened under the draft so the seller stays on the batch.
+function DraftEditor(props: { itemId: string; onSaved: () => void; onClose: () => void }) {
+  const [data, setData] = useState<Awaited<ReturnType<typeof itemFormData>> | undefined>(undefined);
+  useEffect(() => {
+    let live = true;
+    itemFormData(props.itemId).then((d) => live && setData(d), () => live && setData(null));
+    return () => {
+      live = false;
+    };
+  }, [props.itemId]);
+  const save = useMemo(() => {
+    const bound = saveItem.bind(null, props.itemId);
+    return async (state: ItemFormState, formData: FormData) => {
+      const result = await bound(state, formData);
+      if (result?.saved) props.onSaved();
+      return result;
+    };
+  }, [props]);
+
+  if (data === undefined) return <p className="text-sm text-zinc-500">Opening…</p>;
+  if (data === null) return <p className="text-sm text-red-600">This draft couldn&apos;t be opened. Reload the page and try again.</p>;
+  return (
+    <div className="mt-2 rounded-md border border-zinc-200 bg-zinc-50 p-3">
+      <div className="mb-3 flex items-center justify-between text-sm">
+        <span className="font-medium">Edit everything</span>
+        <Link href={`/items/${props.itemId}`} className="text-zinc-600 underline">Open on its own page</Link>
+      </div>
+      <ItemForm action={save} itemId={props.itemId} submitLabel="Save" stores={data.stores} values={data.values} inline={{ onClose: props.onClose }} />
+    </div>
   );
 }
 

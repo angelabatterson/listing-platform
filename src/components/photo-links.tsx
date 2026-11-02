@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { relisticPhotoFile } from "@/lib/photos/background";
 import { PhotoViewer } from "./photo-viewer";
 
@@ -16,6 +16,7 @@ const thumbOf = (url: string) => (relisticPhotoFile(url) ? url.replace(/\.jpg$/,
 // main photo), delete it, or remove its background for free. Changes only touch the
 // links here; the seller presses Save to use them. The raw links can still be edited.
 export function PhotoLinks(props: { defaultValue: string }) {
+  const fieldId = useId();
   const [text, setText] = useState(props.defaultValue);
   const [busy, setBusy] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -130,9 +131,9 @@ export function PhotoLinks(props: { defaultValue: string }) {
       )}
       <details className="mt-3">
         <summary className="cursor-pointer text-sm text-zinc-600">Add or edit photo links</summary>
-        <label className="label mt-2" htmlFor="imageUrls">Photo links (one per line, https://)</label>
+        <label className="label mt-2" htmlFor={fieldId}>Photo links (one per line, https://)</label>
         <textarea
-          id="imageUrls"
+          id={fieldId}
           name="imageUrls"
           rows={3}
           className="input font-mono text-xs"

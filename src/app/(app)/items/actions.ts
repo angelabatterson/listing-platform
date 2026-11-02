@@ -11,8 +11,11 @@ import { listingProblem, writeProblem } from "@/lib/billing/access";
 import { parseSpecifics } from "@/lib/specifics";
 import { parseTags } from "@/lib/tags";
 import { syncItem } from "@/lib/sync/run";
+import type { ItemFormValues, StoreOption } from "@/components/item-form";
+import { itemFormValues } from "@/lib/item-form-values";
+import { storeOptions } from "@/lib/stores";
 
-export type ItemFormState = { error?: string } | undefined;
+export type ItemFormState = { error?: string; saved?: boolean } | undefined;
 
 const dollarsToCents = (v: string) => Math.round(Number(v) * 100);
 
@@ -157,6 +160,12 @@ export async function saveItem(
   const sync = formData.get("intent") !== "save";
   if (sync) await syncItem(user.organizationId, id);
   revalidatePath("/items");
+  // Edited inside a batch's review list: stay there.
+  if (formData.get("inline") === "1") {
+    const saved = await db.query.items.findFirst({ where: eq(items.id, id), columns: { batchId: true } });
+    if (saved?.batchId) revalidatePath(`/batches/${saved.batchId}`);
+    return { saved: true };
+  }
   redirect(`/items/${id}?saved=${sync ? "1" : "local"}`);
 }
 
@@ -176,4 +185,17 @@ export async function resyncItem(itemId: string) {
   if (await writeProblem(user)) return; // The banner explains why.
   await syncItem(user.organizationId, itemId);
   revalidatePath(`/items/${itemId}`);
+}
+
+// Everything the item form needs, for editing a draft without leaving its batch.
+export async function itemFormData(itemId: string): Promise<{ values: ItemFormValues; stores: StoreOption[] } | null> {
+  const user = await requireUser();
+  if (!z.uuid().safeParse(itemId).success) return null;
+  const item = await db.query.items.findFirst({
+    where: and(eq(items.id, itemId), eq(items.organizationId, user.organizationId)),
+    with: { images: true, listings: true },
+  });
+  if (!item) return null;
+  const conns = await db.query.connections.findMany({ where: eq(connections.organizationId, user.organizationId) });
+  return { values: itemFormValues(item), stores: storeOptions(conns, item.listings) };
 }

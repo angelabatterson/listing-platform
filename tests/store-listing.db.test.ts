@@ -14,7 +14,7 @@ const syncItem = vi.fn<(...args: unknown[]) => Promise<SyncOutcome[]>>(async () 
 vi.mock("@/lib/sync/run", () => ({ syncItem: (...args: unknown[]) => syncItem(...args) }));
 
 const { loadStoreListing, removeFromStore, saveStoreListing } = await import("@/app/(app)/items/store-listing-actions");
-const { saveItem } = await import("@/app/(app)/items/actions");
+const { itemFormData, saveItem } = await import("@/app/(app)/items/actions");
 
 const form = (fields: Record<string, string | string[]>) => {
   const fd = new FormData();
@@ -133,6 +133,16 @@ describe.runIf(process.env.TEST_DATABASE_URL)("the List on [store] pop-up", () =
     expect(syncItem).not.toHaveBeenCalled();
     await saveItem(itemId, undefined, form({ ...fields, intent: "sync" }));
     expect(syncItem).toHaveBeenCalledWith(user.organizationId, itemId);
+  });
+
+  it("saves from inside a batch without leaving it, and loads the form there", async () => {
+    const fields = { title: "Inline coat", sku: "J-1", description: "Edited in the batch", price: "40", quantity: "1", condition: "USED_GOOD", status: "draft" };
+    expect(await saveItem(itemId, undefined, form({ ...fields, intent: "save", inline: "1" }))).toEqual({ saved: true });
+    const data = await itemFormData(itemId);
+    expect(data?.values).toMatchObject({ title: "Inline coat", description: "Edited in the batch", price: "40.00", status: "draft" });
+    expect(data?.stores.map((s) => s.connectionId)).toContain(depopId);
+    user.organizationId = crypto.randomUUID();
+    expect(await itemFormData(itemId)).toBeNull();
   });
 
   it("takes the item off the store", async () => {

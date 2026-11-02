@@ -16,6 +16,7 @@ import {
   suggestEbayCategories,
   type CategoryOption,
 } from "@/lib/marketplaces/ebay/taxonomy";
+import { checkEbaySoldPrices } from "@/lib/marketplaces/ebay/sold";
 import { checkEtsyPrices } from "@/lib/marketplaces/etsy/prices";
 import { suggestEtsyCategories } from "@/lib/marketplaces/etsy/taxonomy";
 import { formatSpecifics, parseSpecifics } from "@/lib/specifics";
@@ -113,24 +114,32 @@ export async function fillSpecifics(
   }
 }
 
+// "unavailable" until eBay approves Relistic for sold prices; "failed" when eBay errors.
+export type SoldPrices = PriceCheck | null | "unavailable" | "failed";
+
 export async function checkPrices(
   connectionId: string,
   query: string,
   categoryId: string,
   condition: string,
-): Promise<Result<{ check: PriceCheck | null }>> {
+): Promise<Result<{ check: PriceCheck | null; sold: SoldPrices }>> {
   if (!query.trim()) return { error: "Add a title first." };
+  const isNew = condition.startsWith("NEW");
   try {
     const { connection } = await ownConnection(connectionId);
-    const check =
-      connection.marketplace === "etsy"
-        ? await checkEtsyPrices(connection, { query, taxonomyId: categoryId || undefined })
-        : await checkEbayPrices(connection, {
-            query,
-            categoryId: categoryId || undefined,
-            isNew: condition.startsWith("NEW"),
-          });
-    return { check };
+    const onEbay = connection.marketplace === "ebay";
+    // Sold prices always come from eBay; an Etsy category means nothing there.
+    const sold = checkEbaySoldPrices({ query, categoryId: onEbay ? categoryId || undefined : undefined, isNew }).then(
+      (r): SoldPrices => (r.available ? r.check : "unavailable"),
+      (err): SoldPrices => {
+        console.error("Sold price check failed", err);
+        return "failed";
+      },
+    );
+    const check = onEbay
+      ? await checkEbayPrices(connection, { query, categoryId: categoryId || undefined, isNew })
+      : await checkEtsyPrices(connection, { query, taxonomyId: categoryId || undefined });
+    return { check, sold: await sold };
   } catch (err) {
     return failure(err);
   }

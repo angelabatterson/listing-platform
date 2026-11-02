@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { ConnectExtension } from "@/components/connect-extension";
 import { EbaySettingsForm } from "@/components/ebay-settings-form";
+import { PriceRulesForm } from "@/components/price-rules-form";
 import { EbayStarterPolicies } from "@/components/ebay-starter-policies";
 import { EtsySettingsForm } from "@/components/etsy-settings-form";
 import { ImportListings } from "@/components/import-listings";
@@ -8,7 +9,7 @@ import { db } from "@/db";
 import { connections, extensionKeys, type Connection } from "@/db/schema";
 import { newExtensionKey } from "@/app/(app)/extension/actions";
 import { openTaskCounts } from "@/lib/extension/tasks";
-import { EXTENSION_MARKETPLACES, type ExtensionMarketplace } from "@/lib/marketplaces/labels";
+import { byStoreOrder, EXTENSION_MARKETPLACES, type ExtensionMarketplace } from "@/lib/marketplaces/labels";
 import { requireUser } from "@/lib/auth";
 import { importedCount } from "@/lib/import";
 import { MARKETPLACE_LABELS } from "@/lib/marketplaces";
@@ -350,6 +351,18 @@ export default async function StoresPage(props: PageProps<"/stores">) {
       </section>
 
       <ExtensionStores organizationId={user.organizationId} conns={conns} />
+
+      {byStoreOrder(conns.filter((c) => c.status !== "disconnected")).length > 0 && (
+        <section className="card">
+          <PriceRulesForm
+            stores={byStoreOrder(conns.filter((c) => c.status !== "disconnected")).map((c) => ({
+              id: c.id,
+              label: storeLabel(c),
+              rule: c.settings.priceRule ?? { percent: 0, round: "none" },
+            }))}
+          />
+        </section>
+      )}
     </div>
   );
 }

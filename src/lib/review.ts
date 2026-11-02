@@ -16,7 +16,7 @@ export function postingProblems(item: ItemForReview): string[] {
     const store = MARKETPLACE_LABELS[connection.marketplace];
     if (!isConnectionReady(connection)) return [`${store}: finish this store's setup on the Stores page.`];
     return adapterFor(connection.marketplace)
-      .validate(forStore(item, listing), listing, connection)
+      .validate(forStore(item, listing, connection), listing, connection)
       .map((p) => `${store}: ${p}`);
   });
 }

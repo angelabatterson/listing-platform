@@ -45,7 +45,7 @@ export async function loadStoreListing(itemId: string, connectionId: string): Pr
   const found = await load(user.organizationId, itemId, connectionId);
   if (!found) return null;
   const { item, connection, listing } = found;
-  const view = forStore(item, { overrides: listing?.overrides ?? {} });
+  const view = forStore(item, { overrides: listing?.overrides ?? {} }, connection);
   const sorted = (imgs: typeof item.images) => [...imgs].sort((a, b) => a.position - b.position).map((i) => i.url);
   return {
     store: {

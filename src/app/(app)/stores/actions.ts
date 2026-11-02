@@ -190,3 +190,30 @@ export async function importStorePage(connectionId: string, page: number): Promi
     return { error: err instanceof Error ? err.message : "The store didn't answer. Try again." };
   }
 }
+
+const ruleSchema = z.object({
+  percent: z.coerce.number().min(-90, "A price rule can lower prices by at most 90%.").max(500, "A price rule can raise prices by at most 500%."),
+  round: z.enum(["none", "99", "whole"]),
+});
+
+// Every store's price rule at once (Stores page > Price rules).
+export async function savePriceRules(_prev: StoreSettingsState, formData: FormData): Promise<StoreSettingsState> {
+  const user = await requireUser();
+  const conns = await db.query.connections.findMany({ where: eq(connections.organizationId, user.organizationId) });
+  const updates = [];
+  for (const c of conns) {
+    if (!formData.has(`round_${c.id}`)) continue;
+    const parsed = ruleSchema.safeParse({
+      percent: String(formData.get(`percent_${c.id}`) ?? "").trim() || "0",
+      round: formData.get(`round_${c.id}`),
+    });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    updates.push({ c, rule: { percent: Math.round(parsed.data.percent * 100) / 100, round: parsed.data.round } });
+  }
+  for (const { c, rule } of updates) {
+    await db.update(connections).set({ settings: { ...c.settings, priceRule: rule } }).where(eq(connections.id, c.id));
+  }
+  revalidatePath("/stores");
+  revalidatePath("/items");
+  return { saved: true };
+}

@@ -17,10 +17,10 @@ const CONTACT = "angela.b@apeirosmarketing.com";
 
 // Help articles, in sidebar order.
 const DOC_GROUPS = [
-  ["Start here", ["getting-started", "connect-stores", "chrome-extension"]],
-  ["Listing", ["add-items", "photo-batches", "import-listings"]],
-  ["Selling", ["sales-sync", "shipping-labels", "automations", "dashboard-crm"]],
-  ["Your account", ["billing-account", "faq"]],
+  ["Start here", ["getting-started", "install-app", "connect-stores", "chrome-extension"]],
+  ["Listing", ["add-items", "photo-batches", "bulk-crosslist", "import-listings", "organize-inventory"]],
+  ["Selling", ["sales-sync", "sales-profit", "shipping-labels", "automations", "dashboard-crm"]],
+  ["Your account", ["team-logins", "billing-account", "faq"]],
 ];
 
 function read(path) {

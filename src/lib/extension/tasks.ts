@@ -12,8 +12,8 @@ import type { ChannelAction } from "@/lib/sync/plan";
 const sortedImages = (item: ItemWithImages) => [...item.images].sort((a, b) => a.position - b.position);
 
 // What the store's listing should show, as the extension fills it in.
-export function listingContent(mainItem: ItemWithImages, listing: Pick<ChannelListing, "overrides">) {
-  const item = forStore(mainItem, listing);
+export function listingContent(mainItem: ItemWithImages, listing: Pick<ChannelListing, "overrides">, store?: Pick<Connection, "settings">) {
+  const item = forStore(mainItem, listing, store);
   return {
     title: item.title,
     description: item.description,
@@ -120,7 +120,7 @@ export async function planExtensionWork(
     return `${store}: waiting for the Relistic extension to take the listing down`;
   }
 
-  const fp = fingerprint(listingContent(item, listing));
+  const fp = fingerprint(listingContent(item, listing, connection));
   if (posted && listing.status === "listed" && listing.postedFingerprint === fp) return null;
   const kind = posted ? ("update" as const) : ("list" as const);
   if (pending && pending.kind === kind && pending.fingerprint === fp) return null;
@@ -154,7 +154,7 @@ export async function openTasksFor(organizationId: string) {
     remoteListingId: t.listing.remoteListingId,
     remoteUrl: t.listing.remoteUrl,
     createdAt: t.createdAt,
-    listing: listingContent(t.listing.item, t.listing),
+    listing: listingContent(t.listing.item, t.listing, t.connection),
   }));
 }
 

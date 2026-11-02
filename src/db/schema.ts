@@ -1,3 +1,4 @@
+import type { PriceRule } from "@/lib/price-rules";
 import { relations, sql } from "drizzle-orm";
 import {
   boolean,
@@ -148,8 +149,9 @@ export type ExtensionConnectionSettings = {
   chromeSignIn?: { signedIn: boolean; checkedAt: string };
 };
 
-// Each marketplace reads only its own keys from a connection's settings.
-export type ConnectionSettings = ExtensionConnectionSettings &
+// Each marketplace reads only its own keys from a connection's settings; the price rule
+// (see lib/price-rules) is shared by all.
+export type ConnectionSettings = { priceRule?: PriceRule } & ExtensionConnectionSettings &
   EbayConnectionSettings &
   EtsyConnectionSettings &
   ShopifyConnectionSettings &

@@ -52,7 +52,7 @@ export async function syncItem(
           ? []
           : connection.status !== "active"
             ? [`Add ${store} again on the Stores page first.`]
-            : adapterFor(connection.marketplace).validate(forStore(item, listing), listing, connection);
+            : adapterFor(connection.marketplace).validate(forStore(item, listing, connection), listing, connection);
       if (problems.length) {
         ok = false;
         message = `${store}: ${problems.join(" ")}`;
@@ -74,7 +74,7 @@ export async function syncItem(
       const adapter = adapterFor(connection.marketplace);
       if (connection.status !== "active") throw new Error(`Reconnect your ${store} store first.`);
       if (action === "publish") {
-        const storeItem = forStore(item, listing);
+        const storeItem = forStore(item, listing, connection);
         const problems = adapter.validate(storeItem, listing, connection);
         if (problems.length) throw new Error(problems.join(" "));
         const result = await adapter.upsertListing(storeItem, listing, connection, {

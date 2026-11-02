@@ -1,9 +1,15 @@
 import type { ChannelListing, Connection } from "@/db/schema";
+import { applyPriceRule } from "@/lib/price-rules";
 import type { ItemWithImages } from "./types";
 
 // The item as one store should show it: the main item with that store's own title,
-// description, condition, price and photo choice laid over it.
-export function forStore(item: ItemWithImages, listing: Pick<ChannelListing, "overrides">): ItemWithImages {
+// description, condition, price and photo choice laid over it. Without a price typed
+// for this store, the store's price rule (if any) sets the price.
+export function forStore(
+  item: ItemWithImages,
+  listing: Pick<ChannelListing, "overrides">,
+  store?: Pick<Connection, "settings">,
+): ItemWithImages {
   const o = listing.overrides;
   let images = item.images;
   if (o.imageUrls?.length) {
@@ -19,7 +25,7 @@ export function forStore(item: ItemWithImages, listing: Pick<ChannelListing, "ov
     title: o.title || item.title,
     description: o.description || item.description,
     condition: o.condition || item.condition,
-    priceCents: o.priceCents ?? item.priceCents,
+    priceCents: o.priceCents ?? applyPriceRule(item.priceCents, store?.settings.priceRule),
     images,
   };
 }

@@ -6,6 +6,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { channelListings, connections, items } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { listingProblem } from "@/lib/billing/access";
+import { postingProblems } from "@/lib/review";
 import { syncItem } from "@/lib/sync/run";
 
 // Quick edits and fixes straight from the Inventory list.
@@ -162,4 +164,59 @@ export async function moveListing(itemId: string, connectionId: string, targetIt
   revalidatePath(`/items/${from.id}`);
   revalidatePath(`/items/${to.id}`);
   return { message: `Moved to "${to.title}".` };
+}
+
+export type CrosslistResult = { ok: boolean; message?: string };
+
+// One item from a bulk crosslist: tick the chosen stores on it and post it there. A draft
+// is posted to every store ticked on it, as "Post" on its batch would.
+export async function crosslistItem(itemId: string, connectionIds: string[]): Promise<CrosslistResult> {
+  const user = await requireUser();
+  if (!id.safeParse(itemId).success || !connectionIds.length || !connectionIds.every((c) => id.safeParse(c).success)) {
+    return { ok: false, message: "Item or store not found." };
+  }
+  const [item, stores] = await Promise.all([
+    db.query.items.findFirst({
+      where: and(eq(items.id, itemId), eq(items.organizationId, user.organizationId)),
+      with: { listings: true },
+    }),
+    db.query.connections.findMany({
+      where: and(eq(connections.organizationId, user.organizationId), inArray(connections.id, connectionIds), ne(connections.status, "disconnected")),
+    }),
+  ]);
+  if (!item || !stores.length) return { ok: false, message: "Item or store not found." };
+  if (item.status === "archived") return { ok: false, message: "Archived items can't be listed." };
+  if (item.status === "sold_out" || item.quantity < 1) return { ok: false, message: "None left in stock." };
+  const draft = item.status === "draft";
+  if (draft) {
+    const limit = await listingProblem(user);
+    if (limit) return { ok: false, message: limit };
+  }
+
+  for (const store of stores) {
+    const existing = item.listings.find((l) => l.connectionId === store.id);
+    if (existing) await db.update(channelListings).set({ enabled: true }).where(eq(channelListings.id, existing.id));
+    else await db.insert(channelListings).values({ itemId: item.id, connectionId: store.id, enabled: true });
+  }
+
+  let outcomes;
+  if (draft) {
+    const fresh = await db.query.items.findFirst({
+      where: eq(items.id, item.id),
+      with: { images: true, listings: { with: { connection: true } } },
+    });
+    const problems = fresh ? postingProblems(fresh) : ["Item not found."];
+    if (problems.length) {
+      revalidatePath("/items");
+      return { ok: false, message: `Still a draft: ${problems.join(" ")}` };
+    }
+    await db.update(items).set({ status: "active", scheduledAt: null }).where(eq(items.id, item.id));
+    outcomes = await syncItem(user.organizationId, item.id);
+  } else {
+    outcomes = [];
+    for (const store of stores) outcomes.push(...(await syncItem(user.organizationId, item.id, { only: store.id })));
+  }
+  revalidatePath("/items");
+  const failed = outcomes.filter((o) => !o.ok);
+  return failed.length ? { ok: false, message: failed.map((o) => o.message ?? o.store).join(" ") } : { ok: true };
 }

@@ -1,5 +1,6 @@
 import { and, count, eq, ne } from "drizzle-orm";
 import Link from "next/link";
+import { BulkCrosslist, RowCheck, SelectAll } from "@/components/bulk-crosslist";
 import { FilterForm } from "@/components/filter-form";
 import { FailedBanner, FavoriteStar, RowField, ScheduledBadge } from "@/components/inventory-row";
 import { db } from "@/db";
@@ -23,6 +24,7 @@ import { MARKETPLACE_LABELS } from "@/lib/marketplaces";
 import { byStoreOrder } from "@/lib/marketplaces/labels";
 import { formatPrice } from "@/lib/marketplaces/ebay/mapping";
 import { isAutoSku } from "@/lib/sku";
+import { applyPriceRule } from "@/lib/price-rules";
 
 // Where a listing can be seen, when Relistic knows.
 function listingLink(listing: ChannelListing, store: Connection): string | null {
@@ -41,7 +43,7 @@ function cellListing(item: { priceCents: number }, listing: ChannelListing | und
   if (!listing || (!listing.enabled && (listing.status === "not_listed" || listing.status === "ended"))) return null;
   return {
     status: listing.status,
-    priceCents: listing.overrides.priceCents ?? item.priceCents,
+    priceCents: listing.overrides.priceCents ?? applyPriceRule(item.priceCents, store.settings.priceRule),
     link: listingLink(listing, store),
     error: listing.lastError,
   };
@@ -145,10 +147,15 @@ export default async function ItemsPage(props: PageProps<"/items">) {
             : "No items yet. Add your first item to start listing."}
         </div>
       ) : (
+        <BulkCrosslist
+          items={rows.map((r) => ({ id: r.id, title: r.title }))}
+          stores={stores.map((c) => ({ id: c.id, label: storeLabel(c) }))}
+        >
         <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 text-left text-zinc-600">
               <tr>
+                <th className="w-8 py-2 pl-3"><SelectAll /></th>
                 <th className="w-8 px-2 py-2"><span className="sr-only">Favorite</span></th>
                 <th className="px-4 py-2">Item</th>
                 <th className="px-4 py-2">SKU</th>
@@ -165,6 +172,9 @@ export default async function ItemsPage(props: PageProps<"/items">) {
                 const photo = [...item.images].sort((a, b) => a.position - b.position)[0];
                 return (
                   <tr key={item.id} className="border-t border-zinc-100 align-top">
+                    <td className="py-2.5 pl-3">
+                      <RowCheck itemId={item.id} title={item.title} />
+                    </td>
                     <td className="px-2 py-2 text-center">
                       <FavoriteStar itemId={item.id} favorite={item.favorite} />
                     </td>
@@ -251,6 +261,7 @@ export default async function ItemsPage(props: PageProps<"/items">) {
             </tbody>
           </table>
         </div>
+        </BulkCrosslist>
       )}
 
       {pages > 1 && (

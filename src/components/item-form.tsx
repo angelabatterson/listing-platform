@@ -19,6 +19,7 @@ export type ItemFormValues = {
   condition: string;
   brand: string;
   tags: string;
+  notes: string;
   status: "draft" | "active";
   imageUrls: string;
   specifics: string;
@@ -110,6 +111,11 @@ export function ItemForm(props: {
         <div className="sm:col-span-2">
           <label className="label" htmlFor="description">Description</label>
           <textarea id="description" name="description" rows={6} className="input" defaultValue={v.description} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="label" htmlFor="notes">Private notes (optional)</label>
+          <textarea id="notes" name="notes" rows={2} maxLength={500} className="input" defaultValue={v.notes} placeholder="Missing SKU and weight" />
+          <p className="mt-1 text-xs text-zinc-500">Only you see these. They&apos;re never sent to a store.</p>
         </div>
         <div className="sm:col-span-2">
           <label className="label" htmlFor="specifics">Item specifics (one per line)</label>

@@ -229,6 +229,9 @@ export const items = pgTable(
     attributes: jsonb("attributes").$type<ItemAttributes>().default({}).notNull(),
     status: itemStatusEnum("status").default("draft").notNull(),
     batchId: uuid("batch_id").references(() => batches.id, { onDelete: "set null" }),
+    // The seller's own notes, like "Missing SKU and weight". Never sent to a store.
+    notes: text("notes").notNull().default(""),
+    favorite: boolean("favorite").notNull().default(false),
     draftNotes: jsonb("draft_notes").$type<DraftNotes>().default({}).notNull(),
     ...timestamps,
   },

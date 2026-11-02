@@ -7,6 +7,7 @@ import {
   fillSpecifics,
   findCategories,
 } from "@/app/(app)/items/assist-actions";
+import type { SoldPrices } from "@/app/(app)/items/assist-actions";
 import type { PriceCheck } from "@/lib/marketplaces/ebay/browse";
 import type { CategoryOption } from "@/lib/marketplaces/ebay/taxonomy";
 
@@ -41,6 +42,7 @@ export function StoreAssist(props: {
   const [options, setOptions] = useState<CategoryOption[] | null>(null);
   const [specifics, setSpecifics] = useState<{ missing: string[]; recommended: string[] } | null>(null);
   const [prices, setPrices] = useState<PriceCheck | null | undefined>(undefined);
+  const [sold, setSold] = useState<SoldPrices | undefined>(undefined);
 
   const read = (name: string) => field(formRef.current, name)?.value ?? "";
   const categoryField = `category_${connectionId}`;
@@ -93,10 +95,13 @@ export function StoreAssist(props: {
     });
 
   const comparePrices = () =>
-    run("Looking up similar listings…", async () => {
+    run("Looking up similar listings and sales…", async () => {
       const result = await checkPrices(connectionId, read("title"), read(categoryField), read("condition"));
       if (result.error !== undefined) setError(result.error);
-      else setPrices(result.check);
+      else {
+        setPrices(result.check);
+        setSold(result.sold);
+      }
     });
 
   const applyPrice = (cents: number) => {
@@ -167,6 +172,7 @@ export function StoreAssist(props: {
         </div>
       )}
 
+      {sold !== undefined && <SoldNote sold={sold} onUse={applyPrice} />}
       {prices === null && <p className="text-zinc-600">No similar listings found. Try a shorter title.</p>}
       {prices && (
         <div className="rounded-md bg-zinc-50 px-3 py-2">
@@ -189,6 +195,35 @@ export function StoreAssist(props: {
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+// What similar items actually sold for on eBay (last 90 days), shown above asking prices.
+function SoldNote({ sold, onUse }: { sold: SoldPrices; onUse: (cents: number) => void }) {
+  if (sold === "unavailable") {
+    return <p className="text-xs text-zinc-500">Sold prices: coming soon, once eBay approves Relistic for sold-price data.</p>;
+  }
+  if (sold === "failed") return <p className="text-xs text-zinc-500">Couldn&apos;t get sold prices from eBay just now.</p>;
+  if (sold === null) return <p className="text-zinc-600">No similar items sold on eBay in the last 90 days.</p>;
+  return (
+    <div className="rounded-md bg-green-50 px-3 py-2 text-green-950">
+      <p>
+        {sold.count} similar items sold on eBay in the last 90 days for {dollars(sold.lowCents)} to {dollars(sold.highCents)},
+        typically {dollars(sold.medianCents)}.{" "}
+        <button type="button" className="underline" onClick={() => onUse(sold.medianCents)}>
+          Use {dollars(sold.medianCents)}
+        </button>
+      </p>
+      <ul className="mt-2 flex flex-col gap-1 text-xs">
+        {sold.examples.map((e) => (
+          <li key={e.url}>
+            <a href={e.url} target="_blank" rel="noreferrer" className="underline">
+              Sold for {dollars(e.priceCents)}: {e.title}
+            </a>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

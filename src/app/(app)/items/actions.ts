@@ -35,6 +35,7 @@ const itemSchema = z.object({
   condition: z.string().min(1),
   brand: z.string().trim().optional(),
   tags: z.string().default(""),
+  notes: z.string().max(500, "Notes can be at most 500 characters.").default(""),
   status: z.enum(["draft", "active"]),
   imageUrls: z.string().default(""),
   specifics: z.string().default(""),
@@ -63,6 +64,7 @@ export async function saveItem(
     condition: data.condition,
     brand: data.brand || null,
     tags: parseTags(data.tags),
+    notes: data.notes.trim(),
     attributes: parseSpecifics(data.specifics),
     status: data.status,
   };

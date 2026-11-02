@@ -2,12 +2,16 @@ import "server-only";
 import { and, asc, count, desc, eq, ilike, inArray, ne, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { channelListings, items } from "@/db/schema";
+import { AUTO_SKU_PATTERN } from "@/lib/sku";
 
 export const VIEWS = {
   all: "All",
   listed: "Listed",
   drafts: "Drafts",
   sold: "Sold",
+  delisted: "Delisted",
+  favorites: "Favorites",
+  duplicates: "Duplicates",
   archived: "Archived",
 } as const;
 export type View = keyof typeof VIEWS;
@@ -16,6 +20,7 @@ export const ISSUES = {
   error: "Needs attention",
   waiting: "Waiting in extension",
   unlisted: "Active but not listed anywhere",
+  nosku: "Missing SKU",
 } as const;
 export type Issue = keyof typeof ISSUES;
 
@@ -76,16 +81,28 @@ export function filterHref(f: InventoryFilters, change: Partial<InventoryFilters
   return query ? `/items?${query}` : "/items";
 }
 
+const hasListing = (condition: SQL) =>
+  sql`exists (select 1 from ${channelListings} where ${channelListings.itemId} = ${items.id} and ${condition})`;
+
+// Another item in the account with the same title (ignoring case and outer spaces).
+const hasTwin = sql`exists (select 1 from ${items} as twin where twin.organization_id = ${items.organizationId}
+  and twin.id <> ${items.id} and twin.status <> 'archived' and lower(btrim(twin.title)) = lower(btrim(${items.title})))`;
+
 const viewCondition: Record<View, SQL> = {
   all: ne(items.status, "archived"),
   listed: eq(items.status, "active"),
   drafts: eq(items.status, "draft"),
   sold: eq(items.status, "sold_out"),
+  // Taken off its stores but not sold: something ended, and nothing is up or on its way.
+  delisted: and(
+    eq(items.status, "active"),
+    hasListing(sql`${channelListings.status} = 'ended'`),
+    sql`not ${hasListing(sql`${channelListings.status} in ('listed', 'waiting')`)}`,
+  )!,
+  favorites: and(ne(items.status, "archived"), eq(items.favorite, true))!,
+  duplicates: and(ne(items.status, "archived"), hasTwin)!,
   archived: eq(items.status, "archived"),
 };
-
-const hasListing = (condition: SQL) =>
-  sql`exists (select 1 from ${channelListings} where ${channelListings.itemId} = ${items.id} and ${condition})`;
 
 // Everything but the tab, shared by the list and the tab counts.
 function narrowing(orgId: string, f: InventoryFilters): SQL[] {
@@ -102,6 +119,7 @@ function narrowing(orgId: string, f: InventoryFilters): SQL[] {
   if (f.issue === "unlisted") {
     conditions.push(eq(items.status, "active"), sql`not ${hasListing(sql`${channelListings.status} = 'listed'`)}`);
   }
+  if (f.issue === "nosku") conditions.push(sql`${items.sku} ~ ${AUTO_SKU_PATTERN}`);
   if (f.tag) conditions.push(sql`${items.tags} @> array[${f.tag}]::text[]`);
   return conditions;
 }
@@ -115,6 +133,9 @@ const ORDER: Record<Sort, SQL[]> = {
   title: [asc(sql`lower(${items.title})`)],
 };
 
+// Duplicates sit next to each other, so the seller can compare them.
+const DUPLICATE_ORDER = [asc(sql`lower(btrim(${items.title}))`), asc(items.createdAt)];
+
 // One page of items matching the filters, with their store listings.
 export async function listInventory(orgId: string, f: InventoryFilters) {
   const where = and(...narrowing(orgId, f), viewCondition[f.view]);
@@ -123,7 +144,7 @@ export async function listInventory(orgId: string, f: InventoryFilters) {
       .select({ id: items.id })
       .from(items)
       .where(where)
-      .orderBy(...ORDER[f.sort], asc(items.id))
+      .orderBy(...(f.view === "duplicates" ? DUPLICATE_ORDER : ORDER[f.sort]), asc(items.id))
       .limit(PAGE_SIZE)
       .offset((f.page - 1) * PAGE_SIZE),
     db.select({ total: count() }).from(items).where(where),
@@ -140,17 +161,24 @@ export async function listInventory(orgId: string, f: InventoryFilters) {
 
 // How many items each tab would show with the other filters applied.
 export async function viewCounts(orgId: string, f: InventoryFilters): Promise<Record<View, number>> {
-  const rows = await db
-    .select({ status: items.status, n: count() })
-    .from(items)
-    .where(and(...narrowing(orgId, f)))
-    .groupBy(items.status);
+  const narrowed = narrowing(orgId, f);
+  const countOf = async (view: View) =>
+    (await db.select({ n: count() }).from(items).where(and(...narrowed, viewCondition[view])))[0].n;
+  const [rows, delisted, favorites, duplicates] = await Promise.all([
+    db.select({ status: items.status, n: count() }).from(items).where(and(...narrowed)).groupBy(items.status),
+    countOf("delisted"),
+    countOf("favorites"),
+    countOf("duplicates"),
+  ]);
   const by = (s: string) => rows.find((r) => r.status === s)?.n ?? 0;
   return {
     all: by("active") + by("draft") + by("sold_out"),
     listed: by("active"),
     drafts: by("draft"),
     sold: by("sold_out"),
+    delisted,
+    favorites,
+    duplicates,
     archived: by("archived"),
   };
 }

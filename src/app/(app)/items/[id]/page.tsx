@@ -116,6 +116,7 @@ export default async function ItemPage(props: PageProps<"/items/[id]">) {
           condition: item.condition,
           brand: item.brand ?? "",
           tags: item.tags.join(", "),
+          notes: item.notes,
           status: item.status === "active" ? "active" : "draft",
           imageUrls: images.map((i) => i.url).join("\n"),
           specifics: formatSpecifics(item.attributes),

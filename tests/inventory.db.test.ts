@@ -64,8 +64,17 @@ describe.runIf(process.env.TEST_DATABASE_URL)("listing inventory", () => {
     (await listInventory(org, parseFilters(params))).rows.map((r) => r.title);
 
   it("splits items into tabs and counts each one under the other filters", async () => {
-    expect(await viewCounts(org, parseFilters({}))).toEqual({ all: 4, listed: 2, drafts: 1, sold: 1, archived: 1 });
-    expect(await viewCounts(org, parseFilters({ q: "denim" }))).toEqual({ all: 2, listed: 1, drafts: 1, sold: 0, archived: 0 });
+    expect(await viewCounts(org, parseFilters({}))).toEqual({
+      all: 4,
+      listed: 2,
+      drafts: 1,
+      sold: 1,
+      delisted: 0,
+      favorites: 0,
+      duplicates: 0,
+      archived: 1,
+    });
+    expect(await viewCounts(org, parseFilters({ q: "denim" }))).toMatchObject({ all: 2, listed: 1, drafts: 1, sold: 0, archived: 0 });
     expect(await titles({ view: "archived" })).toEqual(["Old hat"]);
   });
 
@@ -78,5 +87,26 @@ describe.runIf(process.env.TEST_DATABASE_URL)("listing inventory", () => {
     expect(await titles({ issue: "unlisted" })).toEqual(["Wool coat"]);
     expect(await titles({ tag: "Denim", sort: "price-high" })).toEqual(["Denim jacket", "Denim skirt 100%"]);
     expect(await allTags(org)).toEqual(["Bin 4", "Bin 5", "Denim"]);
+  });
+
+  it("finds delisted items, favorites, duplicates and missing SKUs", async () => {
+    const [ended, twin, , auto] = await db
+      .insert(items)
+      .values([
+        { organizationId: org, sku: "A-6", title: "Linen shirt", priceCents: 1000, status: "active", favorite: true },
+        { organizationId: org, sku: "A-7", title: " denim JACKET ", priceCents: 4000, status: "draft" },
+        // An archived twin doesn't count as a duplicate.
+        { organizationId: org, sku: "A-8", title: "Wool Coat", priceCents: 1, status: "archived" },
+        { organizationId: org, sku: "B12-3", title: "Batch thing", priceCents: 1, status: "draft" },
+        { organizationId: org, sku: "EBAY-123456-2", title: "Imported thing", priceCents: 1, status: "active" },
+      ])
+      .returning();
+    await db.insert(channelListings).values({ itemId: ended.id, connectionId: ebay, enabled: false, status: "ended" });
+    expect(await titles({ view: "delisted" })).toEqual(["Linen shirt"]);
+    expect(await titles({ view: "favorites" })).toEqual(["Linen shirt"]);
+    expect(await titles({ view: "duplicates" })).toEqual(["Denim jacket", " denim JACKET "]);
+    expect(await titles({ issue: "nosku", sort: "title" })).toEqual(["Batch thing", "Imported thing"]);
+    expect(await viewCounts(org, parseFilters({}))).toMatchObject({ delisted: 1, favorites: 1, duplicates: 2 });
+    expect(twin.id && auto.id).toBeTruthy();
   });
 });

@@ -1,8 +1,9 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, count, eq, ne } from "drizzle-orm";
 import Link from "next/link";
 import { FilterForm } from "@/components/filter-form";
+import { FailedBanner, FavoriteStar, RowField } from "@/components/inventory-row";
 import { db } from "@/db";
-import { connections, type ChannelListing, type Connection } from "@/db/schema";
+import { channelListings, connections, items, type ChannelListing, type Connection } from "@/db/schema";
 import { StoreCell, type StoreCellListing } from "@/components/store-cell";
 import { requireUser } from "@/lib/auth";
 import {
@@ -21,6 +22,7 @@ import { storeLabel } from "@/lib/stores";
 import { MARKETPLACE_LABELS } from "@/lib/marketplaces";
 import { byStoreOrder } from "@/lib/marketplaces/labels";
 import { formatPrice } from "@/lib/marketplaces/ebay/mapping";
+import { isAutoSku } from "@/lib/sku";
 
 // Where a listing can be seen, when Relistic knows.
 function listingLink(listing: ChannelListing, store: Connection): string | null {
@@ -52,13 +54,18 @@ export default async function ItemsPage(props: PageProps<"/items">) {
   const user = await requireUser();
   const org = user.organizationId;
   const f = parseFilters(await props.searchParams);
-  const [{ rows, total }, counts, tags, connected] = await Promise.all([
+  const [{ rows, total }, counts, tags, connected, [{ failed }]] = await Promise.all([
     listInventory(org, f),
     viewCounts(org, f),
     allTags(org),
     db.query.connections.findMany({
       where: and(eq(connections.organizationId, org), ne(connections.status, "disconnected")),
     }),
+    db
+      .select({ failed: count() })
+      .from(channelListings)
+      .innerJoin(items, eq(items.id, channelListings.itemId))
+      .where(and(eq(items.organizationId, org), eq(channelListings.status, "error"))),
   ]);
   const stores = byStoreOrder(connected);
   const filtered = Boolean(f.q || f.store || f.issue || f.tag);
@@ -70,6 +77,8 @@ export default async function ItemsPage(props: PageProps<"/items">) {
         <h1 className="text-2xl font-semibold">Inventory</h1>
         <Link href="/items/new" className="btn">Add item</Link>
       </div>
+
+      {failed > 0 && <FailedBanner count={failed} href={filterHref(f, { view: "all", issue: "error" })} />}
 
       <nav className="flex gap-1 overflow-x-auto border-b border-zinc-200 text-sm">
         {(Object.keys(VIEWS) as View[]).map((v) => (
@@ -140,9 +149,11 @@ export default async function ItemsPage(props: PageProps<"/items">) {
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 text-left text-zinc-600">
               <tr>
+                <th className="w-8 px-2 py-2"><span className="sr-only">Favorite</span></th>
                 <th className="px-4 py-2">Item</th>
                 <th className="px-4 py-2">SKU</th>
                 <th className="px-4 py-2">Price</th>
+                <th className="px-4 py-2">Cost</th>
                 <th className="px-4 py-2">Qty</th>
                 {stores.map((c) => (
                   <th key={c.id} className="whitespace-nowrap px-4 py-2">{MARKETPLACE_LABELS[c.marketplace]}</th>
@@ -154,6 +165,9 @@ export default async function ItemsPage(props: PageProps<"/items">) {
                 const photo = [...item.images].sort((a, b) => a.position - b.position)[0];
                 return (
                   <tr key={item.id} className="border-t border-zinc-100 align-top">
+                    <td className="px-2 py-2 text-center">
+                      <FavoriteStar itemId={item.id} favorite={item.favorite} />
+                    </td>
                     <td className="px-4 py-2">
                       <div className="flex min-w-56 gap-3">
                         {photo ? (
@@ -166,6 +180,14 @@ export default async function ItemsPage(props: PageProps<"/items">) {
                           <Link href={`/items/${item.id}`} className="font-medium hover:underline">{item.title}</Link>
                           {item.status === "draft" && <span className="ml-2 text-xs text-zinc-500">Draft</span>}
                           {item.status === "sold_out" && <span className="ml-2 text-xs text-zinc-500">Sold</span>}
+                          <RowField
+                            itemId={item.id}
+                            field="notes"
+                            value={item.notes}
+                            label={`Private notes for ${item.title}`}
+                            placeholder="+ Add a private note"
+                            className="-ml-1 mt-0.5 w-full min-w-48 text-xs text-zinc-600"
+                          />
                           {item.tags.length > 0 && (
                             <div className="mt-1 flex flex-wrap gap-1">
                               {item.tags.map((t) => (
@@ -182,8 +204,32 @@ export default async function ItemsPage(props: PageProps<"/items">) {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-2 font-mono text-xs">{item.sku}</td>
+                    <td className="px-4 py-2">
+                      <span className="font-mono text-xs">{item.sku}</span>
+                      {isAutoSku(item.sku) && (
+                        <Link
+                          href={`/items/${item.id}`}
+                          title="This item still has an automatic SKU. Open it to type your own."
+                          className="mt-1 block w-fit whitespace-nowrap rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900 hover:bg-amber-200"
+                        >
+                          Missing SKU
+                        </Link>
+                      )}
+                    </td>
                     <td className="px-4 py-2">${formatPrice(item.priceCents)}</td>
+                    <td className="px-4 py-2">
+                      <span className="flex items-center">
+                        $
+                        <RowField
+                          itemId={item.id}
+                          field="cost"
+                          value={item.costCents === null ? "" : formatPrice(item.costCents)}
+                          label={`What you paid for ${item.title}`}
+                          placeholder="0.00"
+                          className="w-16"
+                        />
+                      </span>
+                    </td>
                     <td className="px-4 py-2">{item.quantity}</td>
                     {stores.map((c) => (
                       <td key={c.id} className="px-4 py-2">

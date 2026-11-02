@@ -6,18 +6,23 @@ export const PLAN_KEYS = ["starter", "pro", "business"] as const;
 export type PlanKey = (typeof PLAN_KEYS)[number];
 
 // null means unlimited. Photo batches always have a cap, since one batch is sorted
-// and stored as a whole.
-export type Limits = { activeListings: number | null; aiDraftsPerMonth: number | null; photosPerBatch: number };
+// and stored as a whole. teamSeats counts helper logins (and open invites) besides the owner.
+export type Limits = {
+  activeListings: number | null;
+  aiDraftsPerMonth: number | null;
+  photosPerBatch: number;
+  teamSeats: number | null;
+};
 
 export const PLANS: Record<PlanKey, { name: string; limits: Limits }> = {
-  starter: { name: "Starter", limits: { activeListings: 100, aiDraftsPerMonth: 50, photosPerBatch: 250 } },
-  pro: { name: "Pro", limits: { activeListings: 500, aiDraftsPerMonth: 300, photosPerBatch: 500 } },
-  business: { name: "Business", limits: { activeListings: null, aiDraftsPerMonth: 1000, photosPerBatch: 1000 } },
+  starter: { name: "Starter", limits: { activeListings: 100, aiDraftsPerMonth: 50, photosPerBatch: 250, teamSeats: 0 } },
+  pro: { name: "Pro", limits: { activeListings: 500, aiDraftsPerMonth: 300, photosPerBatch: 500, teamSeats: 2 } },
+  business: { name: "Business", limits: { activeListings: null, aiDraftsPerMonth: 1000, photosPerBatch: 1000, teamSeats: 5 } },
 };
 
 export const TRIAL_DAYS = 14;
 export const TRIAL_LIMITS: Limits = PLANS.starter.limits;
-const UNLIMITED: Limits = { activeListings: null, aiDraftsPerMonth: null, photosPerBatch: 1000 };
+const UNLIMITED: Limits = { activeListings: null, aiDraftsPerMonth: null, photosPerBatch: 1000, teamSeats: null };
 
 // Stripe statuses that mean the subscription is paid up (or in a Stripe-side trial).
 const PAID = new Set(["active", "trialing"]);
@@ -110,4 +115,11 @@ export function listingLimitMessage(access: Access): string {
 
 export function draftLimitMessage(access: Access): string {
   return `${allowance(access)} ${access.limits.aiDraftsPerMonth} AI drafts a month, and they're used up. ${nextStep(access)} for more, or add items by hand.`;
+}
+
+export function teamLimitMessage(access: Access): string {
+  if (access.limits.teamSeats === 0) {
+    return "Team logins come with the Pro and Business plans. Upgrade on the Billing page to invite helpers.";
+  }
+  return `${allowance(access)} ${access.limits.teamSeats} team logins, and they're all in use. Remove a helper or cancel an invite first, or upgrade on the Billing page.`;
 }

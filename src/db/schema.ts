@@ -83,7 +83,25 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   name: text("name"),
   passwordHash: text("password_hash").notNull(),
+  // "owner" runs the account; a "helper" is a team login that only sees `pages`
+  // (keys from lib/team.ts) and never Stores, Billing or the Team page.
+  role: text("role").$type<"owner" | "helper">().notNull().default("owner"),
+  pages: text("pages").array().notNull().default(sql`'{}'::text[]`),
   ...timestamps,
+});
+
+// An invitation to join an account as a helper. The owner copies the link and sends it
+// themselves; only a hash of the link's token is kept.
+export const teamInvites = pgTable("team_invites", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  pages: text("pages").array().notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 // Only a SHA-256 of the session token is stored, so a database leak can't be replayed.

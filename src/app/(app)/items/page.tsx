@@ -54,7 +54,7 @@ function cellListing(item: { priceCents: number }, listing: ChannelListing | und
 const thumbOf = (url: string) => (url.includes("/api/photos/") && !url.endsWith("-thumb.jpg") ? url.replace(/\.jpg$/, "-thumb.jpg") : url);
 
 export default async function ItemsPage(props: PageProps<"/items">) {
-  const user = await requireUser();
+  const user = await requireUser("items");
   const org = user.organizationId;
   const f = parseFilters(await props.searchParams);
   const [{ rows, total }, counts, tags, connected, [{ failed }]] = await Promise.all([

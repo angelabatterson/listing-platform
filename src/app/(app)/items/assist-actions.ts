@@ -34,7 +34,7 @@ function failure(err: unknown): { error: string } {
 }
 
 async function ownConnection(connectionId: string) {
-  const user = await requireUser();
+  const user = await requireUser(["items", "batches"]);
   const blocked = await writeProblem(user);
   if (blocked) throw new Notice(blocked);
   const connection = await db.query.connections.findFirst({

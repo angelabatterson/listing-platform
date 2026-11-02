@@ -6,7 +6,7 @@ import { TIKTOK_STATE_COOKIE } from "@/lib/marketplaces/tiktok/config";
 import { buildAuthorizeUrl } from "@/lib/marketplaces/tiktok/oauth";
 
 export async function GET() {
-  await requireUser();
+  await requireUser("owner");
   const state = randomToken(16);
   (await cookies()).set(TIKTOK_STATE_COOKIE, state, {
     httpOnly: true,

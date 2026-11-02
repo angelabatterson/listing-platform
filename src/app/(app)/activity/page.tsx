@@ -4,7 +4,7 @@ import { syncEvents } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 
 export default async function ActivityPage() {
-  const user = await requireUser();
+  const user = await requireUser("activity");
   const events = await db.query.syncEvents.findMany({
     where: eq(syncEvents.organizationId, user.organizationId),
     orderBy: desc(syncEvents.createdAt),

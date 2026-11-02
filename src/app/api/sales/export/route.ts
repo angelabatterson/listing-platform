@@ -1,4 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
+import { canUse } from "@/lib/team";
 import { toCsv } from "@/lib/csv";
 import { allSales, parseSalesFilters, salesCsvRows } from "@/lib/sales-table";
 
@@ -7,6 +8,7 @@ import { allSales, parseSalesFilters, salesCsvRows } from "@/lib/sales-table";
 export async function GET(request: Request) {
   const user = await getCurrentUser();
   if (!user) return new Response("Please log in again.", { status: 401 });
+  if (!canUse(user, "sales")) return new Response("Not allowed", { status: 403 });
   const params = Object.fromEntries(new URL(request.url).searchParams);
   const rows = await allSales(user.organizationId, parseSalesFilters(params));
   return new Response(toCsv(salesCsvRows(rows)), {

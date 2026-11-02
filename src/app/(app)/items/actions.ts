@@ -49,7 +49,7 @@ export async function saveItem(
   _prev: ItemFormState,
   formData: FormData,
 ): Promise<ItemFormState> {
-  const user = await requireUser();
+  const user = await requireUser(["items", "batches"]);
   const parsed = itemSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const data = parsed.data;
@@ -170,7 +170,7 @@ export async function saveItem(
 }
 
 export async function archiveItem(itemId: string) {
-  const user = await requireUser();
+  const user = await requireUser(["items", "batches"]);
   await db
     .update(items)
     .set({ status: "archived" })
@@ -181,7 +181,7 @@ export async function archiveItem(itemId: string) {
 }
 
 export async function resyncItem(itemId: string) {
-  const user = await requireUser();
+  const user = await requireUser(["items", "batches"]);
   if (await writeProblem(user)) return; // The banner explains why.
   await syncItem(user.organizationId, itemId);
   revalidatePath(`/items/${itemId}`);
@@ -189,7 +189,7 @@ export async function resyncItem(itemId: string) {
 
 // Everything the item form needs, for editing a draft without leaving its batch.
 export async function itemFormData(itemId: string): Promise<{ values: ItemFormValues; stores: StoreOption[] } | null> {
-  const user = await requireUser();
+  const user = await requireUser(["items", "batches"]);
   if (!z.uuid().safeParse(itemId).success) return null;
   const item = await db.query.items.findFirst({
     where: and(eq(items.id, itemId), eq(items.organizationId, user.organizationId)),

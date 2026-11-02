@@ -20,7 +20,7 @@ function summary(c: Connection): { text: string; ready: boolean } {
 }
 
 export default async function AutomationsPage() {
-  const user = await requireUser();
+  const user = await requireUser("automations");
   const connected = await db.query.connections.findMany({
     where: and(eq(connections.organizationId, user.organizationId), ne(connections.status, "disconnected")),
   });

@@ -27,7 +27,7 @@ export async function saveEbaySettings(
   _prev: StoreSettingsState,
   formData: FormData,
 ): Promise<StoreSettingsState> {
-  const user = await requireUser();
+  const user = await requireUser("owner");
   const parsed = ebaySettingsSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
@@ -62,7 +62,7 @@ export async function createEbayStarterPolicies(
   _prev: StoreSettingsState,
   formData: FormData,
 ): Promise<StoreSettingsState> {
-  const user = await requireUser();
+  const user = await requireUser("owner");
   const parsed = starterPoliciesSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const connection = await db.query.connections.findFirst({
@@ -91,7 +91,7 @@ export async function createEbayStarterPolicies(
 // Poshmark, Depop and Facebook have no sign-in to Relistic: the extension works in the
 // seller's own browser, so adding the store just makes it available to tick on items.
 export async function addExtensionStore(marketplace: ExtensionMarketplace) {
-  const user = await requireUser();
+  const user = await requireUser("owner");
   if (!isExtensionMarketplace(marketplace)) return;
   await db
     .insert(connections)
@@ -104,7 +104,7 @@ export async function addExtensionStore(marketplace: ExtensionMarketplace) {
 }
 
 export async function disconnectStore(connectionId: string) {
-  const user = await requireUser();
+  const user = await requireUser("owner");
   await db
     .update(connections)
     // Forget the store's tokens too: reconnecting signs in again.
@@ -131,7 +131,7 @@ export async function saveEtsySettings(
   _prev: StoreSettingsState,
   formData: FormData,
 ): Promise<StoreSettingsState> {
-  const user = await requireUser();
+  const user = await requireUser("owner");
   const parsed = etsySettingsSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
@@ -153,7 +153,7 @@ const tiktokSettingsSchema = z.object({
 });
 
 export async function saveTiktokSettings(connectionId: string, formData: FormData) {
-  const user = await requireUser();
+  const user = await requireUser("owner");
   const parsed = tiktokSettingsSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return;
   const connection = await db.query.connections.findFirst({
@@ -172,7 +172,7 @@ export type ImportStep = { error?: string; counts?: ImportCounts; total?: number
 // Import one page of a store's live listings. The Stores page calls this page by page
 // so a big shop shows progress and no single request runs too long.
 export async function importStorePage(connectionId: string, page: number): Promise<ImportStep> {
-  const user = await requireUser();
+  const user = await requireUser("owner");
   const connection = await db.query.connections.findFirst({
     where: and(eq(connections.id, connectionId), eq(connections.organizationId, user.organizationId)),
   });
@@ -198,7 +198,7 @@ const ruleSchema = z.object({
 
 // Every store's price rule at once (Stores page > Price rules).
 export async function savePriceRules(_prev: StoreSettingsState, formData: FormData): Promise<StoreSettingsState> {
-  const user = await requireUser();
+  const user = await requireUser("owner");
   const conns = await db.query.connections.findMany({ where: eq(connections.organizationId, user.organizationId) });
   const updates = [];
   for (const c of conns) {

@@ -3,7 +3,7 @@ import { and, count, eq, gte } from "drizzle-orm";
 import { cache } from "react";
 import type Stripe from "stripe";
 import { db } from "@/db";
-import { aiDrafts, items, organizations } from "@/db/schema";
+import { aiDrafts, items, organizations, users } from "@/db/schema";
 import type { CurrentUser } from "@/lib/auth";
 import {
   accessFor,
@@ -25,17 +25,22 @@ function isExempt(email: string): boolean {
     .includes(email.toLowerCase());
 }
 
-const loadAccess = cache(async (organizationId: string, email: string): Promise<Access> => {
+// Exemption follows the account's owner, so helpers on an exempt account are covered too.
+const loadAccess = cache(async (organizationId: string): Promise<Access> => {
   const org = await db.query.organizations.findFirst({
     where: eq(organizations.id, organizationId),
     columns: { trialEndsAt: true, subscriptionStatus: true, plan: true },
   });
   if (!org) throw new Error("Account not found");
-  return accessFor(org, { enabled: billingEnabled(), exempt: isExempt(email) });
+  const owners = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(and(eq(users.organizationId, organizationId), eq(users.role, "owner")));
+  return accessFor(org, { enabled: billingEnabled(), exempt: owners.some((o) => isExempt(o.email)) });
 });
 
 export function getAccess(user: CurrentUser): Promise<Access> {
-  return loadAccess(user.organizationId, user.email);
+  return loadAccess(user.organizationId);
 }
 
 export async function usage(organizationId: string) {

@@ -130,7 +130,7 @@ function PlanCard(props: { plan: PlanKey; price: string | null; current: boolean
 
 export default async function BillingPage(props: PageProps<"/billing">) {
   const { checkout, cancelled } = await props.searchParams;
-  const user = await requireUser();
+  const user = await requireUser("owner");
 
   if (!billingEnabled()) {
     return (

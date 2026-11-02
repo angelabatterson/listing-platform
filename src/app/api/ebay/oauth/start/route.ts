@@ -7,7 +7,7 @@ import { buildAuthorizeUrl } from "@/lib/marketplaces/ebay/oauth";
 
 
 export async function GET() {
-  await requireUser();
+  await requireUser("owner");
   const state = randomToken(16);
   (await cookies()).set(EBAY_STATE_COOKIE, state, {
     httpOnly: true,

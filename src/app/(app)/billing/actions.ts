@@ -12,7 +12,7 @@ import { billingEnabled, stripe } from "@/lib/billing/stripe";
 const MIN_TRIAL_MS = 2 * 86_400_000 + 3_600_000;
 
 async function ownOrganization() {
-  const user = await requireUser();
+  const user = await requireUser("owner");
   const org = await db.query.organizations.findFirst({ where: eq(organizations.id, user.organizationId) });
   if (!org) throw new Error("Account not found");
   return { user, org };

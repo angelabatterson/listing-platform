@@ -10,7 +10,7 @@ import { applyEbayBestOffer, saveEbayAutomations } from "../actions";
 
 export default async function StoreAutomationsPage(props: PageProps<"/automations/[id]">) {
   const { id } = await props.params;
-  const user = await requireUser();
+  const user = await requireUser("automations");
   const connection = await db.query.connections.findFirst({
     where: and(eq(connections.id, id), eq(connections.organizationId, user.organizationId)),
   });

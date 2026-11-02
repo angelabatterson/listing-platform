@@ -6,7 +6,7 @@ import { ETSY_STATE_COOKIE } from "@/lib/marketplaces/etsy/config";
 import { buildAuthorizeUrl, createPkce } from "@/lib/marketplaces/etsy/oauth";
 
 export async function GET() {
-  await requireUser();
+  await requireUser("owner");
   const state = randomToken(16);
   const { verifier, challenge } = createPkce();
   (await cookies()).set(ETSY_STATE_COOKIE, JSON.stringify({ state, verifier }), {

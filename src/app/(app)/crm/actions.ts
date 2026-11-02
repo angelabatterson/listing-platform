@@ -13,7 +13,7 @@ const noteSchema = z.object({
 });
 
 export async function saveBuyerNote(formData: FormData) {
-  const user = await requireUser();
+  const user = await requireUser("crm");
   const parsed = noteSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return;
   const { marketplace, buyerId, note } = parsed.data;

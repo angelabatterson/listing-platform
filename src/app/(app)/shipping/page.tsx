@@ -60,7 +60,7 @@ function Settings(props: { settings: Awaited<ReturnType<typeof getShippingSettin
 }
 
 export default async function ShippingPage() {
-  const user = await requireUser();
+  const user = await requireUser("shipping");
   const org = user.organizationId;
   const [settings, toShip, labels] = await Promise.all([getShippingSettings(org), ordersToShip(org), recentLabels(org)]);
   const ready = Boolean(settings?.apiTokenEnc && settings.fromAddress);

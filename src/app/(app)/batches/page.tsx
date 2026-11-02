@@ -7,7 +7,7 @@ import { DeleteBatchButton } from "@/components/delete-batch-button";
 import { createBatch } from "./actions";
 
 export default async function BatchesPage() {
-  const user = await requireUser();
+  const user = await requireUser("batches");
   const rows = await db
     .select({
       id: batches.id,

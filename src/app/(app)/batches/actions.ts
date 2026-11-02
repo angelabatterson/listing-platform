@@ -41,7 +41,7 @@ async function ownBatch(organizationId: string, batchId: string) {
 }
 
 export async function createBatch() {
-  const user = await requireUser();
+  const user = await requireUser("batches");
   if (await writeProblem(user)) redirect("/billing");
   const [{ last }] = await db
     .select({ last: max(batches.number) })
@@ -68,7 +68,7 @@ async function nextGroupKey(batchId: string): Promise<number> {
 
 // Sorts the next chunk of unsorted photos. The page calls it again while photos remain.
 export async function sortPhotos(batchId: string): Promise<BatchActionResult> {
-  const user = await requireUser();
+  const user = await requireUser("batches");
   const blocked = await writeProblem(user);
   if (blocked) return { error: blocked };
   await ownBatch(user.organizationId, batchId);
@@ -121,7 +121,7 @@ export async function sortPhotos(batchId: string): Promise<BatchActionResult> {
 
 // Move one photo to another item, to a new item of its own, or back to unsorted.
 export async function movePhoto(photoId: string, target: string) {
-  const user = await requireUser();
+  const user = await requireUser("batches");
   const photo = await db.query.photos.findFirst({
     where: and(eq(photos.id, photoId), eq(photos.organizationId, user.organizationId), isNull(photos.itemId)),
     columns: { id: true, batchId: true },
@@ -135,7 +135,7 @@ export async function movePhoto(photoId: string, target: string) {
 
 // Delete photos that haven't become an item yet: one, or several picked on the board.
 export async function deletePhotos(photoIds: string[]) {
-  const user = await requireUser();
+  const user = await requireUser("batches");
   const ids = z.array(z.uuid()).max(1000).safeParse(photoIds);
   if (!ids.success || ids.data.length === 0) return;
   const deleted = await db
@@ -150,7 +150,7 @@ export async function deletePhotos(photoIds: string[]) {
 // Delete a whole batch. Photos that haven't become an item go with it; items made
 // from the batch, and the photos they use, stay in Inventory.
 export async function deleteBatch(batchId: string) {
-  const user = await requireUser();
+  const user = await requireUser("batches");
   const batch = await db.query.batches.findFirst({
     where: and(eq(batches.id, batchId), eq(batches.organizationId, user.organizationId)),
     columns: { id: true },
@@ -186,7 +186,7 @@ export async function deleteBatch(batchId: string) {
 
 // Write one draft listing from one group of photos and save it as a draft item.
 export async function draftItem(batchId: string, groupKey: number): Promise<BatchActionResult> {
-  const user = await requireUser();
+  const user = await requireUser("batches");
   const batch = await ownBatch(user.organizationId, batchId);
   const group = await db
     .select({ id: photos.id, organizationId: photos.organizationId, data: photos.data })
@@ -310,7 +310,7 @@ export async function draftItem(batchId: string, groupKey: number): Promise<Batc
 
 // Start over on an item the AI got wrong: delete the draft and put its photos back.
 export async function discardDraft(itemId: string) {
-  const user = await requireUser();
+  const user = await requireUser("batches");
   const item = await db.query.items.findFirst({
     where: and(eq(items.id, itemId), eq(items.organizationId, user.organizationId), eq(items.status, "draft")),
     with: { listings: { columns: { remoteListingId: true, remoteOfferId: true } } },
@@ -337,7 +337,7 @@ export async function quickEdit(
   itemId: string,
   fields: { title: string; price: string; condition: string; sku: string },
 ): Promise<BatchActionResult> {
-  const user = await requireUser();
+  const user = await requireUser("batches");
   const parsed = quickEditSchema.safeParse(fields);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const item = await db.query.items.findFirst({
@@ -378,7 +378,7 @@ export async function quickEdit(
 
 // Tick or untick one store for a draft, right from the review board.
 export async function setDraftStore(itemId: string, connectionId: string, enabled: boolean): Promise<BatchActionResult> {
-  const user = await requireUser();
+  const user = await requireUser("batches");
   const [item, connection] = await Promise.all([
     db.query.items.findFirst({
       where: and(eq(items.id, itemId), eq(items.organizationId, user.organizationId), eq(items.status, "draft")),
@@ -405,7 +405,7 @@ export async function setDraftStore(itemId: string, connectionId: string, enable
 
 // Make one reviewed draft active and list it on its ticked stores.
 export async function postDraft(itemId: string): Promise<BatchActionResult & { failed?: string[] }> {
-  const user = await requireUser();
+  const user = await requireUser("batches");
   const item = await db.query.items.findFirst({
     where: and(eq(items.id, itemId), eq(items.organizationId, user.organizationId)),
     with: { images: true, listings: { with: { connection: true } } },
@@ -431,7 +431,7 @@ const YEAR_MS = 366 * 86_400_000;
 // Post drafts later: each one goes up at its own time (worked out in the browser, in the
 // seller's time zone). The cron job posts them when the time comes.
 export async function scheduleDrafts(plan: { itemId: string; at: string }[]): Promise<BatchActionResult & { scheduled?: number; problems?: string[] }> {
-  const user = await requireUser();
+  const user = await requireUser("batches");
   if (!Array.isArray(plan) || plan.length === 0) return { error: "Pick at least one draft to schedule." };
   if (plan.length > MAX_SCHEDULE) return { error: `Schedule at most ${MAX_SCHEDULE} drafts at a time.` };
   const now = Date.now();
@@ -468,7 +468,7 @@ export async function scheduleDrafts(plan: { itemId: string; at: string }[]): Pr
 }
 
 export async function cancelSchedule(itemId: string): Promise<BatchActionResult> {
-  const user = await requireUser();
+  const user = await requireUser(["batches", "items"]);
   if (!z.uuid().safeParse(itemId).success) return { error: "Item not found." };
   const [item] = await db
     .update(items)

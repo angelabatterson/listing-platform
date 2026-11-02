@@ -2,6 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { batches, items } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { canUse } from "@/lib/team";
 import { toCsv } from "@/lib/csv";
 import { EBAY_CONDITIONS, formatPrice } from "@/lib/marketplaces/ebay/mapping";
 
@@ -10,6 +11,7 @@ import { EBAY_CONDITIONS, formatPrice } from "@/lib/marketplaces/ebay/mapping";
 export async function GET(_request: Request, ctx: RouteContext<"/api/batches/[id]/export">) {
   const user = await getCurrentUser();
   if (!user) return new Response("Please log in again.", { status: 401 });
+  if (!canUse(user, "batches")) return new Response("Not allowed", { status: 403 });
   const { id } = await ctx.params;
   const batch = await db.query.batches.findFirst({
     where: and(eq(batches.id, id), eq(batches.organizationId, user.organizationId)),

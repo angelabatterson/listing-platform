@@ -62,12 +62,11 @@ async function whyNot(organizationId: string, itemId: string): Promise<string | 
   if (!item) return "the item is gone.";
   const problems = postingProblems(item);
   if (problems.length) return problems.join(" ");
-  // The listing limit belongs to the account; any of its people with room will do.
-  const people = await db.query.users.findMany({ where: eq(users.organizationId, organizationId), orderBy: asc(users.createdAt) });
-  let limit: string | null = "no one is signed up on this account.";
-  for (const u of people) {
-    limit = await listingProblem({ id: u.id, email: u.email, name: u.name, organizationId });
-    if (!limit) break;
-  }
-  return limit;
+  // The listing limit belongs to the account, so its owner's login stands in for it.
+  const owner = await db.query.users.findFirst({
+    where: and(eq(users.organizationId, organizationId), eq(users.role, "owner")),
+    orderBy: asc(users.createdAt),
+  });
+  if (!owner) return "no one is signed up on this account.";
+  return listingProblem({ id: owner.id, email: owner.email, name: owner.name, organizationId, role: owner.role, pages: owner.pages });
 }

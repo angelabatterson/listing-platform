@@ -17,14 +17,15 @@ const ICONS: Record<string, string> = {
   automations: "M13 2 4 14h7l-1 8 9-12h-7l1-8Z",
 };
 
+// `page` is the team page (lib/team.ts) a helper needs to see each entry.
 const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
-  { href: "/crm", label: "CRM", icon: "crm" },
-  { href: "/items", label: "Inventory", icon: "inventory" },
-  { href: "/sales", label: "Sales", icon: "sales" },
-  { href: "/batches", label: "Photo batches", icon: "batches" },
-  { href: "/automations", label: "Automations", icon: "automations" },
-  { href: "/activity", label: "Activity", icon: "activity" },
+  { href: "/dashboard", label: "Dashboard", icon: "dashboard", page: "dashboard" },
+  { href: "/crm", label: "CRM", icon: "crm", page: "crm" },
+  { href: "/items", label: "Inventory", icon: "inventory", page: "items" },
+  { href: "/sales", label: "Sales", icon: "sales", page: "sales" },
+  { href: "/batches", label: "Photo batches", icon: "batches", page: "batches" },
+  { href: "/automations", label: "Automations", icon: "automations", page: "automations" },
+  { href: "/activity", label: "Activity", icon: "activity", page: "activity" },
 ];
 
 function Icon({ name }: { name: string }) {
@@ -36,13 +37,14 @@ function Icon({ name }: { name: string }) {
 }
 
 // The app's menu: a bar down the left on wider screens, and a menu button on phones.
-export function SideNav(props: { label: string; email: string; logout: () => Promise<void> }) {
+// `pages` is null for the owner (everything), or the pages a helper was given.
+export function SideNav(props: { label: string; email: string; pages: string[] | null; logout: () => Promise<void> }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
   const links = (
     <nav className="flex flex-col gap-1">
-      {NAV.map((n) => {
+      {NAV.filter((n) => !props.pages || props.pages.includes(n.page)).map((n) => {
         const active = pathname === n.href || pathname.startsWith(`${n.href}/`);
         return (
           <Link
@@ -86,7 +88,7 @@ export function SideNav(props: { label: string; email: string; logout: () => Pro
         <div className="border-b border-zinc-200 bg-white px-4 pb-4 md:hidden">
           {links}
           <div className="mt-3 border-t border-zinc-100 px-3 pt-3">
-            <AccountMenu label={props.label} email={props.email} logout={props.logout} />
+            <AccountMenu label={props.label} email={props.email} pages={props.pages} logout={props.logout} />
           </div>
         </div>
       )}
@@ -99,7 +101,7 @@ export function SideNav(props: { label: string; email: string; logout: () => Pro
         </Link>
         {links}
         <div className="mt-auto border-t border-zinc-100 px-3 pt-3">
-          <AccountMenu label={props.label} email={props.email} logout={props.logout} up />
+          <AccountMenu label={props.label} email={props.email} pages={props.pages} logout={props.logout} up />
         </div>
       </aside>
     </>

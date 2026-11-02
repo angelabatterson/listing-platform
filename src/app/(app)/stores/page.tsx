@@ -220,7 +220,7 @@ function StoreHeader(props: {
 
 export default async function StoresPage(props: PageProps<"/stores">) {
   const { error, connected } = await props.searchParams;
-  const user = await requireUser();
+  const user = await requireUser("owner");
   const conns = await db.query.connections.findMany({
     where: eq(connections.organizationId, user.organizationId),
   });

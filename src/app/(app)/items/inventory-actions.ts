@@ -25,7 +25,7 @@ async function ownItem(organizationId: string, itemId: string) {
 }
 
 export async function setFavorite(itemId: string, favorite: boolean): Promise<InventoryResult> {
-  const user = await requireUser();
+  const user = await requireUser("items");
   if (!(await ownItem(user.organizationId, itemId))) return { error: "Item not found." };
   await db.update(items).set({ favorite }).where(eq(items.id, itemId));
   revalidatePath("/items");
@@ -43,7 +43,7 @@ const quickSchema = z.object({
 
 // Private notes and cost of goods, typed into the row.
 export async function saveRowDetails(itemId: string, fields: { notes?: string; cost?: string }): Promise<InventoryResult> {
-  const user = await requireUser();
+  const user = await requireUser("items");
   const parsed = quickSchema.safeParse(fields);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   if (!(await ownItem(user.organizationId, itemId))) return { error: "Item not found." };
@@ -72,7 +72,7 @@ async function failedListings(organizationId: string) {
 
 // Try every failed listing again (up to RETRY_BATCH at a time).
 export async function retryFailed(): Promise<InventoryResult> {
-  const user = await requireUser();
+  const user = await requireUser("items");
   const failed = await failedListings(user.organizationId);
   let fixed = 0;
   for (const l of failed.slice(0, RETRY_BATCH)) {
@@ -90,7 +90,7 @@ export async function retryFailed(): Promise<InventoryResult> {
 // Give up on failed listings: ones that never went up are unticked for that store;
 // ones already live keep their listing and just lose the error.
 export async function discardFailed(): Promise<InventoryResult> {
-  const user = await requireUser();
+  const user = await requireUser("items");
   const failed = await failedListings(user.organizationId);
   const neverUp = failed.filter((l) => !l.remoteListingId).map((l) => l.id);
   const live = failed.filter((l) => l.remoteListingId).map((l) => l.id);
@@ -111,7 +111,7 @@ export async function discardFailed(): Promise<InventoryResult> {
 
 // Items to move a store listing to, for the store menu's search box.
 export async function findItems(query: string, excludeItemId: string): Promise<{ id: string; title: string; sku: string }[]> {
-  const user = await requireUser();
+  const user = await requireUser("items");
   const q = query.trim().slice(0, 100);
   if (q.length < 2) return [];
   const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -133,7 +133,7 @@ export async function findItems(query: string, excludeItemId: string): Promise<{
 // Move one store's listing to another item, e.g. when the same thing was entered twice.
 // The listing itself doesn't change on the store; Relistic just tracks it under the other item.
 export async function moveListing(itemId: string, connectionId: string, targetItemId: string): Promise<InventoryResult> {
-  const user = await requireUser();
+  const user = await requireUser("items");
   if (![itemId, connectionId, targetItemId].every((v) => id.safeParse(v).success)) return { error: "Item not found." };
   if (itemId === targetItemId) return { error: "Pick a different item." };
   const [from, to, store] = await Promise.all([
@@ -171,7 +171,7 @@ export type CrosslistResult = { ok: boolean; message?: string };
 // One item from a bulk crosslist: tick the chosen stores on it and post it there. A draft
 // is posted to every store ticked on it, as "Post" on its batch would.
 export async function crosslistItem(itemId: string, connectionIds: string[]): Promise<CrosslistResult> {
-  const user = await requireUser();
+  const user = await requireUser("items");
   if (!id.safeParse(itemId).success || !connectionIds.length || !connectionIds.every((c) => id.safeParse(c).success)) {
     return { ok: false, message: "Item or store not found." };
   }
@@ -223,7 +223,7 @@ export async function crosslistItem(itemId: string, connectionIds: string[]): Pr
 
 // "Not a duplicate": the duplicate check leaves this item out from now on.
 export async function setNotDuplicate(itemId: string): Promise<InventoryResult> {
-  const user = await requireUser();
+  const user = await requireUser("items");
   if (!(await ownItem(user.organizationId, itemId))) return { error: "Item not found." };
   await db.update(items).set({ notDuplicate: true }).where(eq(items.id, itemId));
   revalidatePath("/items");

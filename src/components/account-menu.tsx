@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-// The menu under the signed-in user's name: stores, shipping, account settings, billing and log out.
+// The menu under the signed-in user's name: stores, shipping, team, account settings, billing and
+// log out. Helpers (`pages` set) only get shipping if they were given it, and their own settings.
 // `up` opens the menu above the button, for the bottom of the side bar.
-export function AccountMenu(props: { label: string; email: string; logout: () => Promise<void>; up?: boolean }) {
+export function AccountMenu(props: { label: string; email: string; pages: string[] | null; logout: () => Promise<void>; up?: boolean }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const close = () => setOpen(false);
+  const owner = props.pages === null;
 
   // Close on a click elsewhere or on Escape; the links close it themselves.
   useEffect(() => {
@@ -45,10 +47,13 @@ export function AccountMenu(props: { label: string; email: string; logout: () =>
       {open && (
         <div role="menu" className={`absolute z-20 w-56 ${props.up ? "bottom-full left-0 mb-2" : "left-0 mt-2"} overflow-hidden rounded-md border border-zinc-200 bg-white shadow-lg`}>
           <p className="truncate border-b border-zinc-100 px-4 py-2 text-xs text-zinc-500">{props.email}</p>
-          <Link href="/stores" role="menuitem" className={item} onClick={close}>Stores</Link>
-          <Link href="/shipping" role="menuitem" className={item} onClick={close}>Shipping</Link>
+          {owner && <Link href="/stores" role="menuitem" className={item} onClick={close}>Stores</Link>}
+          {(owner || props.pages?.includes("shipping")) && (
+            <Link href="/shipping" role="menuitem" className={item} onClick={close}>Shipping</Link>
+          )}
+          {owner && <Link href="/team" role="menuitem" className={item} onClick={close}>Team</Link>}
           <Link href="/account" role="menuitem" className={`${item} border-t border-zinc-100`} onClick={close}>Account settings</Link>
-          <Link href="/billing" role="menuitem" className={item} onClick={close}>Billing</Link>
+          {owner && <Link href="/billing" role="menuitem" className={item} onClick={close}>Billing</Link>}
           <form action={props.logout} className="border-t border-zinc-100">
             <button role="menuitem" className={item}>Log out</button>
           </form>

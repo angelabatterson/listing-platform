@@ -11,7 +11,7 @@ import { TIKTOK_STATE_COOKIE } from "@/lib/marketplaces/tiktok/config";
 import { exchangeCode } from "@/lib/marketplaces/tiktok/oauth";
 
 export async function GET(request: NextRequest) {
-  const user = await requireUser();
+  const user = await requireUser("owner");
   const params = request.nextUrl.searchParams;
   const jar = await cookies();
   const saved = jar.get(TIKTOK_STATE_COOKIE)?.value;

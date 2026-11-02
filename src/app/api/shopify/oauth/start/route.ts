@@ -9,7 +9,7 @@ import { buildAuthorizeUrl } from "@/lib/marketplaces/shopify/oauth";
 // Reached from the Stores page form (?shop=what the seller typed), or from Shopify
 // itself when the app is installed there (?shop=...&hmac=...).
 export async function GET(request: NextRequest) {
-  await requireUser();
+  await requireUser("owner");
   const shop = normalizeShopDomain(request.nextUrl.searchParams.get("shop"));
   if (!shop) redirect("/stores?error=shopify_shop");
   const state = randomToken(16);

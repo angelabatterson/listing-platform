@@ -41,7 +41,7 @@ async function load(organizationId: string, itemId: string, connectionId: string
 }
 
 export async function loadStoreListing(itemId: string, connectionId: string): Promise<StoreListingData | null> {
-  const user = await requireUser();
+  const user = await requireUser(["items", "batches"]);
   const found = await load(user.organizationId, itemId, connectionId);
   if (!found) return null;
   const { item, connection, listing } = found;
@@ -86,7 +86,7 @@ export async function saveStoreListing(
   _prev: StoreListingState,
   formData: FormData,
 ): Promise<StoreListingState> {
-  const user = await requireUser();
+  const user = await requireUser(["items", "batches"]);
   const parsed = schema.safeParse({
     ...Object.fromEntries(formData),
     categoryId: formData.get(`category_${connectionId}`) ?? "",
@@ -139,7 +139,7 @@ export async function saveStoreListing(
 
 // Take the item off one store and stop listing it there.
 export async function removeFromStore(itemId: string, connectionId: string): Promise<StoreListingState> {
-  const user = await requireUser();
+  const user = await requireUser(["items", "batches"]);
   const found = await load(user.organizationId, itemId, connectionId);
   if (!found?.listing) return { error: "Item or store not found." };
   await db.update(channelListings).set({ enabled: false }).where(eq(channelListings.id, found.listing.id));

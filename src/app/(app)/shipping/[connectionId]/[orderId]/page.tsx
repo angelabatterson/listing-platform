@@ -15,7 +15,7 @@ export default async function ShipOrderPage(props: PageProps<"/shipping/[connect
   const { connectionId, orderId: rawOrderId } = await props.params;
   const { bought } = await props.searchParams;
   const orderId = decodeURIComponent(rawOrderId);
-  const user = await requireUser();
+  const user = await requireUser("shipping");
   const org = user.organizationId;
 
   const lines = await db.query.sales.findMany({

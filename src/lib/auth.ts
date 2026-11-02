@@ -6,6 +6,7 @@ import { cache } from "react";
 import { db } from "@/db";
 import { sessions, users } from "@/db/schema";
 import { randomToken, sha256Hex } from "./crypto";
+import { canUse, homeFor, type Area } from "./team";
 
 const SESSION_COOKIE = "lp_session";
 const SESSION_DAYS = 30;
@@ -15,6 +16,9 @@ export type CurrentUser = {
   email: string;
   name: string | null;
   organizationId: string;
+  role: "owner" | "helper";
+  // For helpers, the pages they may use (see lib/team.ts).
+  pages: string[];
 };
 
 export async function createSession(userId: string) {
@@ -54,6 +58,8 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       email: users.email,
       name: users.name,
       organizationId: users.organizationId,
+      role: users.role,
+      pages: users.pages,
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
@@ -62,8 +68,12 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   return row ?? null;
 });
 
-export async function requireUser(): Promise<CurrentUser> {
+// With an area (or several, any one of which will do), a helper who wasn't given that
+// page is sent to one they were.
+export async function requireUser(area?: Area | Area[]): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  const areas = area === undefined ? [] : Array.isArray(area) ? area : [area];
+  if (areas.length > 0 && !areas.some((a) => canUse(user, a))) redirect(homeFor(user));
   return user;
 }

@@ -45,7 +45,7 @@ function LabelLinks(props: { row: SaleWithMoney; shippo: boolean }) {
 }
 
 export default async function SalesPage(props: PageProps<"/sales">) {
-  const user = await requireUser();
+  const user = await requireUser("sales");
   const org = user.organizationId;
   const params = await props.searchParams;
   const f = parseSalesFilters(params);

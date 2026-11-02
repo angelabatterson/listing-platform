@@ -19,7 +19,7 @@ function readStateCookie(raw: string | undefined): { state?: string; shop?: stri
 }
 
 export async function GET(request: NextRequest) {
-  const user = await requireUser();
+  const user = await requireUser("owner");
   const params = request.nextUrl.searchParams;
   const jar = await cookies();
   const saved = readStateCookie(jar.get(SHOPIFY_STATE_COOKIE)?.value);

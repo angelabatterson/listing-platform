@@ -7,7 +7,7 @@ import { titleOrder } from "@/lib/ai/title-order";
 import { requireUser } from "@/lib/auth";
 
 export default async function DraftSettingsPage() {
-  const user = await requireUser();
+  const user = await requireUser("batches");
   const org = await db.query.organizations.findFirst({
     where: eq(organizations.id, user.organizationId),
     columns: { draftSettings: true },

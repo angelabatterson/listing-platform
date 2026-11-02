@@ -22,7 +22,7 @@ describe("account access", () => {
     for (const opts of [{ enabled: false, exempt: false }, { enabled: true, exempt: true }]) {
       const access = accessFor(expired, opts, now);
       expect(access).toMatchObject({ state: "free", canWrite: true });
-      expect(access.limits).toEqual({ activeListings: null, aiDraftsPerMonth: null, photosPerBatch: 1000 });
+      expect(access.limits).toEqual({ activeListings: null, aiDraftsPerMonth: null, photosPerBatch: 1000, teamSeats: null });
     }
   });
 

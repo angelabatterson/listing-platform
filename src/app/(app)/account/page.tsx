@@ -3,10 +3,12 @@ import { SettingsForm } from "@/components/settings-form";
 import { db } from "@/db";
 import { organizations } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { isHelper } from "@/lib/team";
 import { changeEmail, changePassword, closeAccount, saveProfile } from "./actions";
 
 export default async function AccountPage() {
   const user = await requireUser();
+  const helper = isHelper(user);
   const org = await db.query.organizations.findFirst({
     where: eq(organizations.id, user.organizationId),
     columns: { name: true },
@@ -19,8 +21,9 @@ export default async function AccountPage() {
         title="Your details"
         submitLabel="Save"
         action={saveProfile}
+        description={helper ? `You're a helper on ${org?.name ?? "this account"}. The account owner manages stores and billing.` : undefined}
         fields={[
-          { name: "businessName", label: "Business name", autoComplete: "organization", defaultValue: org?.name },
+          ...(helper ? [] : [{ name: "businessName", label: "Business name", autoComplete: "organization", defaultValue: org?.name }]),
           { name: "name", label: "Your name", autoComplete: "name", defaultValue: user.name ?? "", required: false },
         ]}
       />
@@ -43,7 +46,7 @@ export default async function AccountPage() {
           { name: "confirm", label: "New password again", type: "password", autoComplete: "new-password" },
         ]}
       />
-      <SettingsForm
+      {!helper && <SettingsForm
         title="Close account"
         description="This cancels any subscription and permanently deletes your account, inventory, photos and store connections. Listings already on eBay or Etsy stay up in those stores; end them there first if you want them gone. This can't be undone."
         submitLabel="Close my account"
@@ -53,7 +56,7 @@ export default async function AccountPage() {
           { name: "password", label: "Password", type: "password", autoComplete: "current-password" },
           { name: "confirm", label: "Type CLOSE to confirm", autoComplete: "off" },
         ]}
-      />
+      />}
     </div>
   );
 }

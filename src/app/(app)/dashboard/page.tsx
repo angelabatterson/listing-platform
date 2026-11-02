@@ -60,7 +60,7 @@ function TotalsHead({ first }: { first: string }) {
 export default async function DashboardPage(props: PageProps<"/dashboard">) {
   const { range: rangeParam } = await props.searchParams;
   const range: RangeKey = isRangeKey(rangeParam) ? rangeParam : "30d";
-  const user = await requireUser();
+  const user = await requireUser("dashboard");
   const org = user.organizationId;
   const { from, to } = rangeBounds(range);
 

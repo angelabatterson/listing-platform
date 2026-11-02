@@ -15,7 +15,7 @@ const settingsSchema = z.object({
 });
 
 export async function saveDraftSettings(settings: { titleOrder: string[]; skuFromPhoto: boolean }): Promise<{ error?: string }> {
-  const user = await requireUser();
+  const user = await requireUser("batches");
   const parsed = settingsSchema.safeParse(settings);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await db

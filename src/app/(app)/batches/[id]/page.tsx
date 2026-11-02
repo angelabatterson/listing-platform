@@ -22,7 +22,7 @@ export const maxDuration = 300;
 
 export default async function BatchPage(props: PageProps<"/batches/[id]">) {
   const { id } = await props.params;
-  const user = await requireUser();
+  const user = await requireUser("batches");
   const batch = await db.query.batches.findFirst({
     where: and(eq(batches.id, id), eq(batches.organizationId, user.organizationId)),
   });

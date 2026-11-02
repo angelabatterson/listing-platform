@@ -7,7 +7,7 @@ import { storeOptions } from "@/lib/stores";
 import { saveItem } from "../actions";
 
 export default async function NewItemPage() {
-  const user = await requireUser();
+  const user = await requireUser("items");
   const conns = await db.query.connections.findMany({
     where: eq(connections.organizationId, user.organizationId),
   });

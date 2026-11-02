@@ -22,7 +22,7 @@ function refresh() {
 
 // One money box in a sale's row. Blank puts it back to what Relistic works out.
 export async function saveSaleMoney(saleId: string, field: string, value: string): Promise<SalesResult> {
-  const user = await requireUser();
+  const user = await requireUser("sales");
   if (!id.safeParse(saleId).success || !isMoneyField(field)) return { error: "Sale not found." };
   const cents = parseDollars(value);
   if (cents === undefined) return { error: "Enter an amount, like 4.50." };
@@ -40,7 +40,7 @@ export async function saveSaleMoney(saleId: string, field: string, value: string
 const MAX_FILE_BYTES = 2_000_000;
 
 export async function importSales(_prev: SalesResult | undefined, formData: FormData): Promise<SalesResult> {
-  const user = await requireUser();
+  const user = await requireUser("sales");
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Pick a CSV file first." };
   if (file.size > MAX_FILE_BYTES) return { error: "That file is too big. Split it into smaller files." };
@@ -71,7 +71,7 @@ const addSchema = z.object({
 
 // A sale typed in by hand, e.g. one from a store Relistic doesn't hear about.
 export async function addSale(_prev: SalesResult | undefined, formData: FormData): Promise<SalesResult> {
-  const user = await requireUser();
+  const user = await requireUser("sales");
   const s = (k: string) => String(formData.get(k) ?? "");
   const parsed = addSchema.safeParse({
     connectionId: s("connectionId"),
@@ -146,7 +146,7 @@ export async function addSale(_prev: SalesResult | undefined, formData: FormData
 
 // Only sales typed in or uploaded by hand can be deleted. Stock isn't put back.
 export async function deleteManualSale(saleId: string): Promise<SalesResult> {
-  const user = await requireUser();
+  const user = await requireUser("sales");
   if (!id.safeParse(saleId).success) return { error: "Sale not found." };
   const [gone] = await db
     .delete(sales)

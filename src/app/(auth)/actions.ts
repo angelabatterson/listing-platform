@@ -4,9 +4,11 @@ import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db";
-import { organizations, users } from "@/db/schema";
+import { organizations, teamInvites, users } from "@/db/schema";
 import { createSession, destroySession } from "@/lib/auth";
 import { hashPassword, verifyPassword } from "@/lib/crypto";
+import { homeFor } from "@/lib/team";
+import { findInvite } from "@/lib/team-invites";
 
 export type AuthState = { error?: string } | undefined;
 
@@ -46,10 +48,45 @@ export async function login(_prev: AuthState, formData: FormData): Promise<AuthS
     return { error: "That email and password don't match." };
   }
   await createSession(user.id);
-  redirect("/items");
+  redirect(homeFor(user));
 }
 
 export async function logout() {
   await destroySession();
   redirect("/login");
+}
+
+const joinSchema = z.object({
+  name: z.string().trim().min(1, "Enter your name"),
+  password: z.string().min(10, "Use at least 10 characters for your password"),
+});
+
+// A helper accepts an invite: their login is made in the inviting account, with the
+// pages the owner chose, and the invite is used up.
+export async function acceptInvite(token: string, _prev: AuthState, formData: FormData): Promise<AuthState> {
+  const parsed = joinSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const invite = await findInvite(token);
+  if (!invite) return { error: "This invite link has expired or was cancelled. Ask for a new one." };
+  const existing = await db.query.users.findFirst({ where: eq(users.email, invite.email), columns: { id: true } });
+  if (existing) return { error: "That email already has a Relistic login. Log in with it, or ask for an invite to a different email." };
+
+  const passwordHash = await hashPassword(parsed.data.password);
+  const user = await db.transaction(async (tx) => {
+    await tx.delete(teamInvites).where(eq(teamInvites.id, invite.id));
+    const [row] = await tx
+      .insert(users)
+      .values({
+        organizationId: invite.organizationId,
+        email: invite.email,
+        name: parsed.data.name,
+        passwordHash,
+        role: "helper",
+        pages: invite.pages,
+      })
+      .returning();
+    return row;
+  });
+  await createSession(user.id);
+  redirect(homeFor(user));
 }

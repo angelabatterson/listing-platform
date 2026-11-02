@@ -9,7 +9,7 @@ import { MARKETPLACE_LABELS } from "@/lib/marketplaces/labels";
 import { saveBuyerNote } from "./actions";
 
 export default async function CrmPage() {
-  const user = await requireUser();
+  const user = await requireUser("crm");
   const org = user.organizationId;
   const [list, purchases, notes] = await Promise.all([
     buyers(org, 500),

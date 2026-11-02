@@ -45,7 +45,7 @@ export async function saveEbayAutomations(
   _prev: AutomationsState,
   formData: FormData,
 ): Promise<AutomationsState> {
-  const user = await requireUser();
+  const user = await requireUser("automations");
   const parsed = ebayAutomationsSchema.safeParse({ message: "", ...Object.fromEntries(formData) });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const connection = await findEbayStore(user.organizationId, connectionId);
@@ -99,7 +99,7 @@ const APPLY_CHUNK = 10;
 // can show progress. `after` is the last listing done; a listing that fails drops out of
 // "listed", so counting by position would skip one.
 export async function applyEbayBestOffer(connectionId: string, after: string | null): Promise<ApplyStep> {
-  const user = await requireUser();
+  const user = await requireUser("automations");
   const connection = await findEbayStore(user.organizationId, connectionId);
   if (!connection) return { error: "Store not found", count: 0, total: 0, failed: 0, next: null };
 

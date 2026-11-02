@@ -1,4 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
+import { canUse } from "@/lib/team";
 import { writeProblem } from "@/lib/billing/access";
 import { saveEditedPhoto } from "@/lib/photos/edits";
 
@@ -6,6 +7,7 @@ import { saveEditedPhoto } from "@/lib/photos/edits";
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "Please log in again." }, { status: 401 });
+  if (!canUse(user, "items") && !canUse(user, "batches")) return Response.json({ error: "Not allowed" }, { status: 403 });
   const blocked = await writeProblem(user);
   if (blocked) return Response.json({ error: blocked }, { status: 402 });
 

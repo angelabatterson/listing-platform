@@ -11,6 +11,7 @@ import { hasLiveSubscription } from "@/lib/billing/plans";
 import { billingEnabled, stripe } from "@/lib/billing/stripe";
 import { hashPassword, verifyPassword } from "@/lib/crypto";
 import { deleteAccountPhotoFiles } from "@/lib/photos/store";
+import { isHelper } from "@/lib/team";
 
 export type SettingsState = { error?: string; saved?: string } | undefined;
 
@@ -21,6 +22,13 @@ const profileSchema = z.object({
 
 export async function saveProfile(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
   const user = await requireUser();
+  // Helpers only have their own name here; the business name is the owner's.
+  if (isHelper(user)) {
+    const name = String(formData.get("name") ?? "").trim();
+    await db.update(users).set({ name: name || null }).where(eq(users.id, user.id));
+    revalidatePath("/", "layout");
+    return { saved: "Saved." };
+  }
   const parsed = profileSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await db.transaction(async (tx) => {
@@ -82,7 +90,7 @@ const closeSchema = z.object({
 // Delete the account and everything in it. A running subscription is cancelled first,
 // so a closed account is never billed again.
 export async function closeAccount(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
-  const user = await requireUser();
+  const user = await requireUser("owner");
   const parsed = closeSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   if (!(await checkPassword(user.id, parsed.data.password))) return { error: "That password isn't right." };

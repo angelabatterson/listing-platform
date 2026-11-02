@@ -25,7 +25,7 @@ async function upsertSettings(orgId: string, values: Partial<typeof shippingSett
 }
 
 export async function saveShippoKey(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
-  const user = await requireUser();
+  const user = await requireUser("shipping");
   const token = String(formData.get("token") ?? "").trim();
   if (!looksLikeShippoToken(token)) {
     return { error: "That doesn't look like a Shippo key. It starts with shippo_live_ (or shippo_test_ for testing)." };
@@ -56,7 +56,7 @@ const addressSchema = z.object({
 });
 
 export async function saveFromAddress(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
-  const user = await requireUser();
+  const user = await requireUser("shipping");
   const parsed = addressSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const a = parsed.data;
@@ -84,7 +84,7 @@ function parseParcel(formData: FormData): { parcel?: ParcelSize; error?: string 
 }
 
 export async function saveDefaultParcel(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
-  const user = await requireUser();
+  const user = await requireUser("shipping");
   const { parcel, error } = parseParcel(formData);
   if (!parcel) return { error };
   await upsertSettings(user.organizationId, { defaultParcel: parcel });
@@ -114,7 +114,7 @@ export async function quoteRates(
   _prev: RatesState,
   formData: FormData,
 ): Promise<RatesState> {
-  const user = await requireUser();
+  const user = await requireUser("shipping");
   const { parcel, error } = parseParcel(formData);
   if (!parcel) return { error };
   const { ready, missing } = await readyShipping(user.organizationId);
@@ -156,7 +156,7 @@ export async function buyShippingLabel(
   orderId: string,
   rateId: string,
 ): Promise<BuyState> {
-  const user = await requireUser();
+  const user = await requireUser("shipping");
   const blocked = await writeProblem(user);
   if (blocked) return { error: blocked };
   const { ready, missing } = await readyShipping(user.organizationId);
@@ -193,7 +193,7 @@ export async function buyShippingLabel(
 }
 
 export async function retryTracking(labelId: string) {
-  const user = await requireUser();
+  const user = await requireUser("shipping");
   await pushTracking(labelId, user.organizationId);
   revalidatePath("/shipping", "layout");
 }

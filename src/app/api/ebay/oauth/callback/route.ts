@@ -11,7 +11,7 @@ import { DEFAULT_MARKETPLACE_ID, EBAY_STATE_COOKIE, ebayEnvironment } from "@/li
 import { exchangeCode } from "@/lib/marketplaces/ebay/oauth";
 
 export async function GET(request: NextRequest) {
-  const user = await requireUser();
+  const user = await requireUser("owner");
   const params = request.nextUrl.searchParams;
   const jar = await cookies();
   const expectedState = jar.get(EBAY_STATE_COOKIE)?.value;

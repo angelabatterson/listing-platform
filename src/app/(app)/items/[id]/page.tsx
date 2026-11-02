@@ -11,7 +11,7 @@ import { archiveItem, resyncItem, saveItem } from "../actions";
 export default async function ItemPage(props: PageProps<"/items/[id]">) {
   const { id } = await props.params;
   const { saved } = await props.searchParams;
-  const user = await requireUser();
+  const user = await requireUser(["items", "batches"]);
 
   const item = await db.query.items.findFirst({
     where: and(eq(items.id, id), eq(items.organizationId, user.organizationId)),

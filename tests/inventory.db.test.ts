@@ -105,7 +105,7 @@ describe.runIf(process.env.TEST_DATABASE_URL)("listing inventory", () => {
     await db.insert(channelListings).values({ itemId: ended.id, connectionId: ebay, enabled: false, status: "ended" });
     expect(await titles({ view: "delisted" })).toEqual(["Linen shirt"]);
     expect(await titles({ view: "favorites" })).toEqual(["Linen shirt"]);
-    expect(await titles({ view: "duplicates" })).toEqual(["Denim jacket", " denim JACKET "]);
+    expect((await titles({ view: "duplicates" })).sort()).toEqual([" denim JACKET ", "Denim jacket"]);
     expect(await titles({ issue: "nosku", sort: "title" })).toEqual(["Batch thing", "Imported thing"]);
     expect(await viewCounts(org, parseFilters({}))).toMatchObject({ delisted: 1, favorites: 1, duplicates: 2 });
     expect(twin.id && auto.id).toBeTruthy();

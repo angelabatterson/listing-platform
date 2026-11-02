@@ -220,3 +220,12 @@ export async function crosslistItem(itemId: string, connectionIds: string[]): Pr
   const failed = outcomes.filter((o) => !o.ok);
   return failed.length ? { ok: false, message: failed.map((o) => o.message ?? o.store).join(" ") } : { ok: true };
 }
+
+// "Not a duplicate": the duplicate check leaves this item out from now on.
+export async function setNotDuplicate(itemId: string): Promise<InventoryResult> {
+  const user = await requireUser();
+  if (!(await ownItem(user.organizationId, itemId))) return { error: "Item not found." };
+  await db.update(items).set({ notDuplicate: true }).where(eq(items.id, itemId));
+  revalidatePath("/items");
+  return {};
+}

@@ -2,7 +2,7 @@ import { and, count, eq, ne } from "drizzle-orm";
 import Link from "next/link";
 import { BulkCrosslist, RowCheck, SelectAll } from "@/components/bulk-crosslist";
 import { FilterForm } from "@/components/filter-form";
-import { FailedBanner, FavoriteStar, RowField, ScheduledBadge } from "@/components/inventory-row";
+import { DuplicateNote, FailedBanner, FavoriteStar, RowField, ScheduledBadge } from "@/components/inventory-row";
 import { db } from "@/db";
 import { channelListings, connections, items, type ChannelListing, type Connection } from "@/db/schema";
 import { StoreCell, type StoreCellListing } from "@/components/store-cell";
@@ -24,6 +24,7 @@ import { MARKETPLACE_LABELS } from "@/lib/marketplaces";
 import { byStoreOrder } from "@/lib/marketplaces/labels";
 import { formatPrice } from "@/lib/marketplaces/ebay/mapping";
 import { isAutoSku } from "@/lib/sku";
+import { duplicatesFor } from "@/lib/duplicates";
 import { applyPriceRule } from "@/lib/price-rules";
 
 // Where a listing can be seen, when Relistic knows.
@@ -70,6 +71,7 @@ export default async function ItemsPage(props: PageProps<"/items">) {
       .where(and(eq(items.organizationId, org), eq(channelListings.status, "error"))),
   ]);
   const stores = byStoreOrder(connected);
+  const duplicates = f.view === "duplicates" ? await duplicatesFor(org) : null;
   const filtered = Boolean(f.q || f.store || f.issue || f.tag);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -96,6 +98,13 @@ export default async function ItemsPage(props: PageProps<"/items">) {
           </Link>
         ))}
       </nav>
+
+      {f.view === "duplicates" && (
+        <p className="text-sm text-zinc-600">
+          Items that may be the same thing entered twice: the same or a very similar title, the same SKU, or the same
+          photo. Open one to compare, then archive the copy, or click <strong>Not a duplicate</strong> to hide it here.
+        </p>
+      )}
 
       <FilterForm className="flex flex-wrap items-center gap-2 text-sm">
         {f.view !== "all" && <input type="hidden" name="view" value={f.view} />}
@@ -189,6 +198,7 @@ export default async function ItemsPage(props: PageProps<"/items">) {
                         <div>
                           <Link href={`/items/${item.id}`} className="font-medium hover:underline">{item.title}</Link>
                           {item.status === "draft" && <span className="ml-2 text-xs text-zinc-500">Draft</span>}
+                          {duplicates?.get(item.id) && <DuplicateNote itemId={item.id} {...duplicates.get(item.id)!} />}
                           {item.status === "draft" && item.scheduledAt && (
                             <ScheduledBadge itemId={item.id} at={item.scheduledAt.toISOString()} />
                           )}

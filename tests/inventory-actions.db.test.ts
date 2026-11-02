@@ -9,7 +9,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 const syncItem = vi.fn(async () => [{ store: "Poshmark", action: "publish", ok: true }]);
 vi.mock("@/lib/sync/run", () => ({ syncItem: (...args: unknown[]) => syncItem(...(args as [])) }));
 
-const { discardFailed, findItems, moveListing, retryFailed, saveRowDetails, setFavorite } = await import(
+const { discardFailed, findItems, moveListing, retryFailed, saveRowDetails, setFavorite, setNotDuplicate } = await import(
   "@/app/(app)/items/inventory-actions"
 );
 
@@ -50,6 +50,8 @@ describe.runIf(process.env.TEST_DATABASE_URL)("fixing things from the Inventory 
     expect(await saveRowDetails(jacket, { cost: "" })).toEqual({});
     expect((await item(jacket)).costCents).toBeNull();
     expect(await saveRowDetails(jacket, { cost: "lots" })).toHaveProperty("error");
+    expect(await setNotDuplicate(jacket)).toEqual({});
+    expect((await item(jacket)).notDuplicate).toBe(true);
 
     const [other] = await db.insert(organizations).values({ name: "Other" }).returning();
     user.organizationId = other.id;

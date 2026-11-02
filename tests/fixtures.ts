@@ -21,6 +21,7 @@ export function makeItem(overrides: Partial<ItemWithImages> = {}): ItemWithImage
     batchId: null,
     notes: "",
     favorite: false,
+    notDuplicate: false,
     scheduledAt: null,
     draftNotes: {},
     createdAt: new Date(),

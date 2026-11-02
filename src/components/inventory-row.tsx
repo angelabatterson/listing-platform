@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { cancelSchedule } from "@/app/(app)/batches/actions";
-import { discardFailed, retryFailed, saveRowDetails, setFavorite } from "@/app/(app)/items/inventory-actions";
+import { discardFailed, retryFailed, saveRowDetails, setFavorite, setNotDuplicate } from "@/app/(app)/items/inventory-actions";
 import { LocalTime } from "./local-time";
 
 // The favorite star at the start of an Inventory row.
@@ -142,6 +142,36 @@ export function ScheduledBadge(props: { itemId: string; at: string }) {
         }
       >
         Cancel
+      </button>
+    </span>
+  );
+}
+
+// Under an item on the Duplicates tab: what it looks like a copy of, and a way to say it isn't.
+export function DuplicateNote(props: { itemId: string; otherId: string; otherTitle: string; reason: "title" | "sku" | "photo" }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const why = props.reason === "sku" ? "Same SKU as" : props.reason === "photo" ? "Same photo as" : "Looks like";
+  return (
+    <span className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-amber-900">
+      <span>
+        {why}{" "}
+        <a href={`/items/${props.otherId}`} className="underline">
+          {props.otherTitle}
+        </a>
+      </span>
+      <button
+        type="button"
+        disabled={pending}
+        className="text-zinc-600 underline disabled:opacity-50"
+        onClick={() =>
+          startTransition(async () => {
+            await setNotDuplicate(props.itemId);
+            router.refresh();
+          })
+        }
+      >
+        Not a duplicate
       </button>
     </span>
   );

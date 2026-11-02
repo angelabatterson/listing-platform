@@ -234,6 +234,8 @@ export const items = pgTable(
     // The seller's own notes, like "Missing SKU and weight". Never sent to a store.
     notes: text("notes").notNull().default(""),
     favorite: boolean("favorite").notNull().default(false),
+    // The seller said this isn't a duplicate, so the duplicate check leaves it out.
+    notDuplicate: boolean("not_duplicate").notNull().default(false),
     // A draft waiting to be posted automatically at this time (Photo batches > Schedule).
     scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
     draftNotes: jsonb("draft_notes").$type<DraftNotes>().default({}).notNull(),

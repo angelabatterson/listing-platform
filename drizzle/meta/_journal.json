@@ -127,6 +127,13 @@
       "when": 1793643105589,
       "tag": "0017_bumpy_jack_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793652450373,
+      "tag": "0018_supreme_wrecking_crew",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, count, desc, eq, ilike, inArray, isNotNull, ne, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { channelListings, items } from "@/db/schema";
+import { duplicatesFor } from "@/lib/duplicates";
 import { AUTO_SKU_PATTERN } from "@/lib/sku";
 
 export const VIEWS = {
@@ -85,11 +86,7 @@ export function filterHref(f: InventoryFilters, change: Partial<InventoryFilters
 const hasListing = (condition: SQL) =>
   sql`exists (select 1 from ${channelListings} where ${channelListings.itemId} = ${items.id} and ${condition})`;
 
-// Another item in the account with the same title (ignoring case and outer spaces).
-const hasTwin = sql`exists (select 1 from ${items} as twin where twin.organization_id = ${items.organizationId}
-  and twin.id <> ${items.id} and twin.status <> 'archived' and lower(btrim(twin.title)) = lower(btrim(${items.title})))`;
-
-const viewCondition: Record<View, SQL> = {
+const viewCondition: Record<Exclude<View, "duplicates">, SQL> = {
   all: ne(items.status, "archived"),
   listed: eq(items.status, "active"),
   drafts: eq(items.status, "draft"),
@@ -102,9 +99,15 @@ const viewCondition: Record<View, SQL> = {
     sql`not ${hasListing(sql`${channelListings.status} in ('listed', 'waiting')`)}`,
   )!,
   favorites: and(ne(items.status, "archived"), eq(items.favorite, true))!,
-  duplicates: and(ne(items.status, "archived"), hasTwin)!,
   archived: eq(items.status, "archived"),
 };
+
+// Possible duplicates come from lib/duplicates, worked out for the whole account.
+async function conditionFor(orgId: string, view: View): Promise<SQL> {
+  if (view !== "duplicates") return viewCondition[view];
+  const ids = [...(await duplicatesFor(orgId)).keys()];
+  return ids.length ? inArray(items.id, ids) : sql`false`;
+}
 
 // Everything but the tab, shared by the list and the tab counts.
 function narrowing(orgId: string, f: InventoryFilters): SQL[] {
@@ -139,17 +142,28 @@ const ORDER: Record<Sort, SQL[]> = {
 const SCHEDULED_ORDER = [asc(items.scheduledAt)];
 
 // Duplicates sit next to each other, so the seller can compare them.
-const DUPLICATE_ORDER = [asc(sql`lower(btrim(${items.title}))`), asc(items.createdAt)];
+async function duplicateOrder(orgId: string): Promise<SQL[]> {
+  const matches = await duplicatesFor(orgId);
+  // Each pair under the older item's id, so both land together.
+  const groupOf = (id: string) => {
+    const m = matches.get(id);
+    return m && m.otherId < id ? m.otherId : id;
+  };
+  const ids = [...matches.keys()].sort((a, b) => groupOf(a).localeCompare(groupOf(b)) || a.localeCompare(b));
+  return ids.length ? [sql`array_position(${sql.raw(`array[${ids.map((i) => `'${i}'`).join(",")}]::uuid[]`)}, ${items.id})`] : [];
+}
 
 // One page of items matching the filters, with their store listings.
 export async function listInventory(orgId: string, f: InventoryFilters) {
-  const where = and(...narrowing(orgId, f), viewCondition[f.view]);
+  const where = and(...narrowing(orgId, f), await conditionFor(orgId, f.view));
+  const order =
+    f.view === "duplicates" ? await duplicateOrder(orgId) : f.view === "scheduled" ? SCHEDULED_ORDER : ORDER[f.sort];
   const [ids, [{ total }]] = await Promise.all([
     db
       .select({ id: items.id })
       .from(items)
       .where(where)
-      .orderBy(...(f.view === "duplicates" ? DUPLICATE_ORDER : f.view === "scheduled" ? SCHEDULED_ORDER : ORDER[f.sort]), asc(items.id))
+      .orderBy(...order, asc(items.id))
       .limit(PAGE_SIZE)
       .offset((f.page - 1) * PAGE_SIZE),
     db.select({ total: count() }).from(items).where(where),
@@ -168,7 +182,7 @@ export async function listInventory(orgId: string, f: InventoryFilters) {
 export async function viewCounts(orgId: string, f: InventoryFilters): Promise<Record<View, number>> {
   const narrowed = narrowing(orgId, f);
   const countOf = async (view: View) =>
-    (await db.select({ n: count() }).from(items).where(and(...narrowed, viewCondition[view])))[0].n;
+    (await db.select({ n: count() }).from(items).where(and(...narrowed, await conditionFor(orgId, view))))[0].n;
   const [rows, scheduled, delisted, favorites, duplicates] = await Promise.all([
     db.select({ status: items.status, n: count() }).from(items).where(and(...narrowed)).groupBy(items.status),
     countOf("scheduled"),

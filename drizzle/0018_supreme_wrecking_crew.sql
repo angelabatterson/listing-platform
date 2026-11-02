@@ -1,0 +1,1 @@
+ALTER TABLE "items" ADD COLUMN "not_duplicate" boolean DEFAULT false NOT NULL;

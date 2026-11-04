@@ -1,7 +1,9 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useRef, useState, type DragEvent } from "react";
+import { MAX_PHOTOS_PER_ITEM } from "@/lib/photos/limits";
 import { relisticPhotoFile } from "@/lib/photos/background";
+import { eachLimited, isImageFile, preparePhoto } from "@/lib/photos/resize";
 import { PhotoViewer } from "./photo-viewer";
 
 const lines = (text: string) =>
@@ -12,12 +14,30 @@ const lines = (text: string) =>
 
 const thumbOf = (url: string) => (relisticPhotoFile(url) ? url.replace(/\.jpg$/, "-thumb.jpg") : url);
 
-// The item's photos: click one to see it bigger, move it left or right (the first is the
-// main photo), delete it, or remove its background for free. Changes only touch the
-// links here; the seller presses Save to use them. The raw links can still be edited.
+// Uploads one photo for an item (not part of a batch) and returns its link.
+async function uploadPhoto(file: File): Promise<string> {
+  const { photo, thumb } = await preparePhoto(file);
+  const body = new FormData();
+  body.set("photo", photo, file.name);
+  body.set("thumb", thumb, file.name);
+  const res = await fetch("/api/photos/upload", { method: "POST", body });
+  const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+  if (!res.ok || !json.url) throw new Error(json.error ?? `${file.name}: upload failed.`);
+  return json.url;
+}
+
+// Marks a drag that moves a photo already on the item, as opposed to files from the computer.
+const MOVE_TYPE = "application/x-relistic-photo";
+
+// The item's photos: drag them into order (the first is the main photo), drop or choose
+// new photos from the computer, click one to see it bigger, delete it, or remove its
+// background for free. Nothing is kept until the seller presses Save.
 export function PhotoLinks(props: { defaultValue: string }) {
-  const fieldId = useId();
   const [text, setText] = useState(props.defaultValue);
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dropOver, setDropOver] = useState(false);
+  const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +54,55 @@ export function PhotoLinks(props: { defaultValue: string }) {
     [next[i], next[j]] = [next[j], next[i]];
     setUrls(next);
     setStatus("Photo order changed. Press Save to keep it.");
+  }
+
+  function moveTo(from: number, to: number) {
+    if (from === to) return;
+    const next = [...urls];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setUrls(next);
+    setStatus("Photo order changed. Press Save to keep it.");
+  }
+
+  async function addFiles(list: FileList | null) {
+    const files = [...(list ?? [])].filter(isImageFile);
+    if (files.length === 0) return;
+    const room = MAX_PHOTOS_PER_ITEM - urls.length;
+    if (room <= 0) return setError(`An item can have up to ${MAX_PHOTOS_PER_ITEM} photos.`);
+    const chosen = files.slice(0, room);
+    setError(null);
+    setUploading({ done: 0, total: chosen.length });
+    const added: string[] = new Array(chosen.length);
+    const failed: string[] = [];
+    await eachLimited(chosen, 3, async (file, i) => {
+      try {
+        added[i] = await uploadPhoto(file);
+      } catch (err) {
+        failed.push(err instanceof Error ? err.message : `${file.name}: upload failed.`);
+      }
+      setUploading((u) => (u ? { ...u, done: u.done + 1 } : u));
+    });
+    setUploading(null);
+    const ok = added.filter(Boolean);
+    if (ok.length) {
+      setText((current) => [...lines(current), ...ok].join("\n"));
+      setStatus(`${ok.length} ${ok.length === 1 ? "photo" : "photos"} added. Press Save to keep ${ok.length === 1 ? "it" : "them"}.`);
+    }
+    if (files.length > chosen.length) failed.push(`Only ${MAX_PHOTOS_PER_ITEM} photos fit on one item, so ${files.length - chosen.length} were left out.`);
+    if (failed.length) setError(failed.join(" "));
+  }
+
+  function onDrop(e: DragEvent, to?: number) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDropOver(false);
+    if (e.dataTransfer.types.includes(MOVE_TYPE)) {
+      if (dragFrom !== null) moveTo(dragFrom, to ?? urls.length - 1);
+    } else {
+      void addFiles(e.dataTransfer.files);
+    }
+    setDragFrom(null);
   }
 
   function remove(i: number) {
@@ -80,28 +149,52 @@ export function PhotoLinks(props: { defaultValue: string }) {
     setStatus("Original photo put back. Press Save to keep it.");
   }
 
+  const busyNow = busy !== null || uploading !== null;
   return (
-    <div className="sm:col-span-2">
+    <div
+      className={`sm:col-span-2 rounded-lg ${dropOver ? "bg-zinc-50 outline-2 outline-dashed outline-zinc-400" : ""}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!e.dataTransfer.types.includes(MOVE_TYPE)) setDropOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropOver(false);
+      }}
+      onDrop={(e) => onDrop(e)}
+    >
+      <input type="hidden" name="imageUrls" value={text} />
       <p className="label">Photos ({urls.length})</p>
       {urls.length === 0 ? (
-        <p className="text-sm text-zinc-500">No photos yet. Upload them in a photo batch, or paste photo links below.</p>
+        <p className="text-sm text-zinc-500">No photos yet. Drag photos here, or click Add photos.</p>
       ) : (
         <ul className="flex flex-wrap gap-3">
           {urls.map((url, i) => (
-            <li key={`${url}-${i}`} className="flex w-32 flex-col gap-1 text-xs">
+            <li
+              key={`${url}-${i}`}
+              draggable={!busyNow}
+              onDragStart={(e) => {
+                e.dataTransfer.setData(MOVE_TYPE, String(i));
+                e.dataTransfer.effectAllowed = "move";
+                setDragFrom(i);
+              }}
+              onDragEnd={() => setDragFrom(null)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => onDrop(e, i)}
+              className={`flex w-32 cursor-grab flex-col gap-1 text-xs ${dragFrom === i ? "opacity-40" : ""}`}
+            >
               <button type="button" className="relative block" onClick={() => setZoom(i)} title="Click to see it bigger">
                 {/* eslint-disable-next-line @next/next/no-img-element -- photos come from many hosts */}
                 <img src={thumbOf(url)} alt={`Photo ${i + 1}`} className="h-32 w-32 rounded-md border border-zinc-200 bg-white object-contain" />
                 {i === 0 && <span className="absolute left-1 top-1 rounded bg-zinc-900/80 px-1.5 py-0.5 text-[10px] text-white">Main</span>}
               </button>
               <div className="flex items-center justify-between">
-                <button type="button" aria-label="Move left" className="rounded border border-zinc-300 px-2 disabled:opacity-30" onClick={() => move(i, -1)} disabled={i === 0 || busy !== null}>
+                <button type="button" aria-label="Move left" className="rounded border border-zinc-300 px-2 disabled:opacity-30" onClick={() => move(i, -1)} disabled={i === 0 || busyNow}>
                   ←
                 </button>
                 <button type="button" className="text-red-700 underline disabled:opacity-50" onClick={() => remove(i)} disabled={busy !== null}>
                   Delete
                 </button>
-                <button type="button" aria-label="Move right" className="rounded border border-zinc-300 px-2 disabled:opacity-30" onClick={() => move(i, 1)} disabled={i === urls.length - 1 || busy !== null}>
+                <button type="button" aria-label="Move right" className="rounded border border-zinc-300 px-2 disabled:opacity-30" onClick={() => move(i, 1)} disabled={i === urls.length - 1 || busyNow}>
                   →
                 </button>
               </div>
@@ -119,8 +212,26 @@ export function PhotoLinks(props: { defaultValue: string }) {
           ))}
         </ul>
       )}
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button type="button" className="btn-secondary" onClick={() => picker.current?.click()} disabled={busyNow}>
+          Add photos
+        </button>
+        <input
+          ref={picker}
+          type="file"
+          accept="image/*,.heic,.heif"
+          multiple
+          hidden
+          onChange={(e) => {
+            void addFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        {uploading && <span className="text-sm text-zinc-600">Uploading {uploading.done} of {uploading.total}…</span>}
+      </div>
       <p className="mt-2 text-xs text-zinc-500">
-        The first photo is the main one. Click a photo to see it bigger. Use the arrows to change the order.
+        Drag photos to change the order; the first one is the main photo. Drop photos from your computer here to add them.
+        Click a photo to see it bigger.
       </p>
       {status && <p className="mt-2 text-sm text-zinc-600">{status}</p>}
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
@@ -129,18 +240,6 @@ export function PhotoLinks(props: { defaultValue: string }) {
           Background removal works on photos uploaded to Relistic through a photo batch.
         </p>
       )}
-      <details className="mt-3">
-        <summary className="cursor-pointer text-sm text-zinc-600">Add or edit photo links</summary>
-        <label className="label mt-2" htmlFor={fieldId}>Photo links (one per line, https://)</label>
-        <textarea
-          id={fieldId}
-          name="imageUrls"
-          rows={3}
-          className="input font-mono text-xs"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-      </details>
       {zoom !== null && <PhotoViewer urls={urls} index={zoom} onIndex={setZoom} onClose={() => setZoom(null)} />}
     </div>
   );

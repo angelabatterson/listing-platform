@@ -1,15 +1,17 @@
 import "server-only";
-import { and, count, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, inArray, lt, or, type SQL } from "drizzle-orm";
 import { db } from "@/db";
-import { connections, itemImages, items, sales, shippingLabels, type Connection } from "@/db/schema";
+import { channelListings, connections, itemImages, items, sales, shippingLabels, type Connection } from "@/db/schema";
+import { listingLink } from "@/lib/listing-link";
 import { dollars, MONEY_FIELD_KEYS, MONEY_FIELDS, type MoneyField } from "@/lib/sale-fields";
 import { storeLabel } from "@/lib/stores";
+import { isDay, isPeriod, periodRange, type Period } from "@/lib/periods";
 
 // The Sales page: every sale with its money worked out, like a reseller's spreadsheet.
 
 export const SALES_PAGE_SIZE = 50;
 
-export type SalesFilters = { q: string; store: string; page: number };
+export type SalesFilters = { q: string; store: string; period: Period; from: string; to: string; page: number };
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -17,18 +19,33 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function parseSalesFilters(params: Record<string, string | string[] | undefined>): SalesFilters {
   const page = Number.parseInt(one(params.page), 10);
   const store = one(params.store);
+  const period = one(params.period);
+  const from = one(params.from);
+  const to = one(params.to);
   return {
     q: one(params.q).trim().slice(0, 100),
     store: UUID.test(store) ? store : "",
+    period: isPeriod(period) ? period : "all",
+    from: isDay(from) ? from : "",
+    to: isDay(to) ? to : "",
     page: Number.isFinite(page) && page > 1 ? page : 1,
   };
 }
 
+// The filters as address query text, without the page (for the spreadsheet download).
+export function salesQuery(f: SalesFilters): string {
+  const params = new URLSearchParams();
+  if (f.q) params.set("q", f.q);
+  if (f.store) params.set("store", f.store);
+  if (f.period !== "all") params.set("period", f.period);
+  if (f.period === "custom" && f.from) params.set("from", f.from);
+  if (f.period === "custom" && f.to) params.set("to", f.to);
+  return params.toString();
+}
+
 export function salesHref(f: SalesFilters, change: Partial<SalesFilters> = {}): string {
   const next = { ...f, page: 1, ...change };
-  const params = new URLSearchParams();
-  if (next.q) params.set("q", next.q);
-  if (next.store) params.set("store", next.store);
+  const params = new URLSearchParams(salesQuery(next));
   if (next.page > 1) params.set("page", String(next.page));
   const query = params.toString();
   return query ? `/sales?${query}` : "/sales";
@@ -120,6 +137,9 @@ function narrowing(orgId: string, f: SalesFilters): SQL[] {
     conditions.push(or(ilike(sales.title, like), ilike(sales.sku, like), ilike(items.title, like), ilike(items.sku, like))!);
   }
   if (f.store) conditions.push(eq(sales.connectionId, f.store));
+  const range = periodRange(f.period, f.from, f.to);
+  if (range.start) conditions.push(gte(sales.soldAt, range.start));
+  if (range.end) conditions.push(lt(sales.soldAt, range.end));
   return conditions;
 }
 
@@ -185,7 +205,7 @@ async function withMoney(orgId: string, rows: SaleRow[]) {
   if (!rows.length) return [];
   const itemIds = [...new Set(rows.map((r) => r.item?.id).filter((v): v is string => Boolean(v)))];
   const orderIds = [...new Set(rows.map((r) => r.sale.externalOrderId))];
-  const [photos, labels, orderLines] = await Promise.all([
+  const [photos, labels, orderLines, listings] = await Promise.all([
     itemIds.length ? db.select().from(itemImages).where(inArray(itemImages.itemId, itemIds)) : [],
     db
       .select()
@@ -196,6 +216,8 @@ async function withMoney(orgId: string, rows: SaleRow[]) {
       .select({ id: sales.id, connectionId: sales.connectionId, orderId: sales.externalOrderId, lineId: sales.externalLineId })
       .from(sales)
       .where(and(eq(sales.organizationId, orgId), inArray(sales.externalOrderId, orderIds))),
+    // Each item's listing on each store, to link a sale to the listing it sold from.
+    itemIds.length ? db.select().from(channelListings).where(inArray(channelListings.itemId, itemIds)) : [],
   ]);
   const firstPhoto = new Map<string, string>();
   for (const p of [...photos].sort((a, b) => a.position - b.position)) if (!firstPhoto.has(p.itemId)) firstPhoto.set(p.itemId, p.url);
@@ -217,6 +239,10 @@ async function withMoney(orgId: string, rows: SaleRow[]) {
       label: orderLabels[0] ?? null,
       money: saleMoney(sale, item?.costCents ?? null, labelCost),
       orderLink: storeOrderLink(store, sale.externalOrderId, sale.manual),
+      listingLink: (() => {
+        const listing = item ? listings.find((l) => l.itemId === item.id && l.connectionId === sale.connectionId) : undefined;
+        return listing ? listingLink(listing, store, { includeEnded: true }) : null;
+      })(),
     };
   });
 }

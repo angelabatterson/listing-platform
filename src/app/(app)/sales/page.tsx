@@ -8,7 +8,9 @@ import { connections } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { byStoreOrder, MARKETPLACE_LABELS } from "@/lib/marketplaces/labels";
 import { dollars, MONEY_FIELD_KEYS, MONEY_FIELDS } from "@/lib/sale-fields";
-import { listSales, moneyValue, parseSalesFilters, SALES_PAGE_SIZE, salesHref, type SaleWithMoney } from "@/lib/sales-table";
+import { listSales, moneyValue, parseSalesFilters, SALES_PAGE_SIZE, salesHref, salesQuery, type SaleWithMoney } from "@/lib/sales-table";
+import { PeriodPicker } from "@/components/period-picker";
+import { PERIODS } from "@/lib/periods";
 import { readyShipping } from "@/lib/shipping/settings";
 import { storeLabel } from "@/lib/stores";
 
@@ -29,7 +31,7 @@ function LabelLinks(props: { row: SaleWithMoney; shippo: boolean }) {
       )}
       {orderLink && (
         <a href={orderLink} target="_blank" rel="noreferrer" className="whitespace-nowrap text-zinc-700 hover:underline">
-          {sale.manual ? `Open ${name} orders` : `Print label on ${name}`} ↗
+          {sale.manual ? "Open Shipping" : `Print label on ${name}`} ↗
         </a>
       )}
       {!label && !sale.manual && props.shippo && SHIPPO_STORES.has(store.marketplace) && (
@@ -56,8 +58,9 @@ export default async function SalesPage(props: PageProps<"/sales">) {
   ]);
   const stores = byStoreOrder(connected);
   const pages = Math.max(1, Math.ceil(total / SALES_PAGE_SIZE));
-  const filtered = Boolean(f.q || f.store);
-  const exportQuery = new URLSearchParams({ ...(f.q ? { q: f.q } : {}), ...(f.store ? { store: f.store } : {}) }).toString();
+  const filtered = Boolean(f.q || f.store || f.period !== "all");
+  const exportQuery = salesQuery(f);
+  const thisYear = new Date().getUTCFullYear();
   const sum = (pick: (r: SaleWithMoney) => number) => rows.reduce((n, r) => n + pick(r), 0);
   const anyEstimated = rows.some((r) => r.money.feesEstimated);
   const anyUncosted = rows.some((r) => !r.money.costKnown);
@@ -71,9 +74,19 @@ export default async function SalesPage(props: PageProps<"/sales">) {
             Everything you&apos;ve sold, newest first. Click any amount to change it; profit updates by itself.
           </p>
         </div>
-        <a href={`/api/sales/export${exportQuery ? `?${exportQuery}` : ""}`} className="btn-secondary">
-          Download spreadsheet
-        </a>
+        <div className="flex flex-wrap gap-2">
+          <a href={`/api/sales/export${exportQuery ? `?${exportQuery}` : ""}`} className="btn-secondary">
+            Download spreadsheet{f.period !== "all" ? ` (${PERIODS[f.period].toLowerCase()})` : ""}
+          </a>
+          <form action="/api/sales/pnl" className="flex items-center gap-1">
+            <select name="year" defaultValue={String(thisYear - (new Date().getUTCMonth() < 2 ? 1 : 0))} className="input w-auto" aria-label="Year">
+              {Array.from({ length: 6 }, (_, i) => thisYear - i).map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            <button className="btn-secondary">Year-end P&amp;L (PDF)</button>
+          </form>
+        </div>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
@@ -106,6 +119,7 @@ export default async function SalesPage(props: PageProps<"/sales">) {
             <option key={c.id} value={c.id}>{storeLabel(c)}</option>
           ))}
         </select>
+        <PeriodPicker period={f.period} from={f.from} to={f.to} />
         <button className="btn-secondary">Search</button>
         {filtered && (
           <Link href="/sales" className="text-zinc-600 underline">
@@ -134,7 +148,7 @@ export default async function SalesPage(props: PageProps<"/sales">) {
             </thead>
             <tbody>
               {rows.map((row) => {
-                const { sale, store, item, photo, money: m } = row;
+                const { sale, store, item, photo, money: m, listingLink: onStore } = row;
                 const title = item?.title ?? sale.title ?? sale.sku ?? "Item";
                 return (
                   <tr key={sale.id} className="border-t border-zinc-100 align-top">
@@ -147,14 +161,21 @@ export default async function SalesPage(props: PageProps<"/sales">) {
                           <div className="h-12 w-12 shrink-0 rounded bg-zinc-100" />
                         )}
                         <div className="min-w-0">
-                          {item ? (
+                          {onStore ? (
+                            <a href={onStore} target="_blank" rel="noreferrer" className="font-medium hover:underline" title={`Open the listing on ${MARKETPLACE_LABELS[store.marketplace]}`}>
+                              {title} <span className="text-zinc-400">↗</span>
+                            </a>
+                          ) : item ? (
                             <Link href={`/items/${item.id}`} className="font-medium hover:underline">{title}</Link>
                           ) : (
                             <span className="font-medium">{title}</span>
                           )}
                           <div className="text-xs text-zinc-500">
                             {shortDate(sale.soldAt)} · {storeLabel(store)}
-                            {(item?.sku ?? sale.sku) && <> · <span className="font-mono">{item?.sku ?? sale.sku}</span></>}
+                            {(item?.sku ?? sale.sku) && <> · SKU: <span className="font-mono">{item?.sku ?? sale.sku}</span></>}
+                            {onStore && item && (
+                              <> · <Link href={`/items/${item.id}`} className="hover:underline">Edit item</Link></>
+                            )}
                           </div>
                           <div className="text-xs text-zinc-500">
                             {sale.quantity} sold{item ? ` · ${item.quantity} left` : ""}

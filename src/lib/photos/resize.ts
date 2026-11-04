@@ -1,4 +1,5 @@
 // Browser-side photo shrinking, so uploads are small and fast even from a phone.
+import { PHOTO_EDGE, THUMB_EDGE } from "./limits";
 
 export function scaledSize(width: number, height: number, edge: number): { width: number; height: number } {
   const scale = Math.min(1, edge / Math.max(width, height));
@@ -33,3 +34,20 @@ export async function eachLimited<T>(inputs: T[], limit: number, worker: (input:
   };
   await Promise.all(Array.from({ length: Math.min(limit, inputs.length) }, run));
 }
+
+// A photo and its thumbnail, shrunk and turned the right way up, ready to upload.
+export async function preparePhoto(file: File): Promise<{ photo: Blob; thumb: Blob }> {
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    throw new Error(`${file.name}: this browser can't open that file type. Try a JPEG or PNG.`);
+  }
+  const [photo, thumb] = await Promise.all([
+    resizeToJpeg(bitmap, PHOTO_EDGE, 0.85),
+    resizeToJpeg(bitmap, THUMB_EDGE, 0.7),
+  ]).finally(() => bitmap.close());
+  return { photo, thumb };
+}
+
+export const isImageFile = (f: File) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name);

@@ -79,6 +79,14 @@ describe.runIf(process.env.TEST_DATABASE_URL)("the Sales page", () => {
     expect((await listSales(org, parseSalesFilters({ q: "belt" }))).total).toBe(1);
   });
 
+  it("narrows to a time period", async () => {
+    const custom = (from: string, to: string) => listSales(org, parseSalesFilters({ period: "custom", from, to }));
+    expect((await custom("2026-10-30", "2026-10-30")).total).toBe(2);
+    expect((await custom("2026-10-31", "")).total).toBe(0);
+    expect((await custom("", "2026-10-29")).total).toBe(0);
+    expect(parseSalesFilters({ period: "nonsense" }).period).toBe("all");
+  });
+
   it("saves typed amounts, and only for the seller's own sales", async () => {
     const [row] = (await page()).filter((r) => r.sale.externalLineId === "L1");
     expect(await saveSaleMoney(row.sale.id, "cost", "8")).toEqual({});

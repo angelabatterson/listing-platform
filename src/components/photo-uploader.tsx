@@ -2,20 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type DragEvent } from "react";
-import { PHOTO_EDGE, THUMB_EDGE } from "@/lib/photos/limits";
-import { eachLimited, resizeToJpeg } from "@/lib/photos/resize";
+import { eachLimited, preparePhoto } from "@/lib/photos/resize";
 
 async function uploadOne(batchId: string, file: File, position: number) {
-  let bitmap: ImageBitmap;
-  try {
-    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-  } catch {
-    throw new Error(`${file.name}: this browser can't open that file type. Try a JPEG or PNG.`);
-  }
-  const [photo, thumb] = await Promise.all([
-    resizeToJpeg(bitmap, PHOTO_EDGE, 0.85),
-    resizeToJpeg(bitmap, THUMB_EDGE, 0.7),
-  ]).finally(() => bitmap.close());
+  const { photo, thumb } = await preparePhoto(file);
 
   const body = new FormData();
   body.set("photo", photo, file.name);

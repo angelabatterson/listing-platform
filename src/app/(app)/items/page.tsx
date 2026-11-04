@@ -26,23 +26,19 @@ import { formatPrice } from "@/lib/marketplaces/ebay/mapping";
 import { isAutoSku } from "@/lib/sku";
 import { duplicatesFor } from "@/lib/duplicates";
 import { applyPriceRule } from "@/lib/price-rules";
+import { listingLink } from "@/lib/listing-link";
+import { StoreLogo } from "@/components/store-logo";
 
-// Where a listing can be seen, when Relistic knows.
-function listingLink(listing: ChannelListing, store: Connection): string | null {
-  if (listing.remoteUrl) return listing.remoteUrl;
-  const id = listing.remoteListingId;
-  if (!id || listing.status === "ended") return null;
-  if (store.marketplace === "ebay") return `https://www.${store.environment === "sandbox" ? "sandbox." : ""}ebay.com/itm/${id}`;
-  if (store.marketplace === "etsy") return `https://www.etsy.com/listing/${id}`;
-  if (store.marketplace === "shopify" && store.settings.shopDomain) {
-    return `https://${store.settings.shopDomain}/admin/products/${id.split("/").pop()}`;
-  }
-  return null;
-}
-
-function cellListing(item: { priceCents: number }, listing: ChannelListing | undefined, store: Connection): StoreCellListing | null {
+function cellListing(
+  item: { priceCents: number },
+  listing: ChannelListing | undefined,
+  store: Connection,
+  photo: string | null,
+): StoreCellListing | null {
   if (!listing || (!listing.enabled && (listing.status === "not_listed" || listing.status === "ended"))) return null;
+  const own = listing.overrides.imageUrls?.[0];
   return {
+    photo: own ? thumbOf(own) : photo,
     status: listing.status,
     priceCents: listing.overrides.priceCents ?? applyPriceRule(item.priceCents, store.settings.priceRule),
     link: listingLink(listing, store),
@@ -157,8 +153,8 @@ export default async function ItemsPage(props: PageProps<"/items">) {
         </div>
       ) : (
         <BulkCrosslist
-          items={rows.map((r) => ({ id: r.id, title: r.title }))}
-          stores={stores.map((c) => ({ id: c.id, label: storeLabel(c) }))}
+          items={rows.map((r) => ({ id: r.id, title: r.title, priceCents: r.priceCents, draft: r.status === "draft" }))}
+          stores={stores.map((c) => ({ id: c.id, label: storeLabel(c), marketplace: c.marketplace, rule: c.settings.priceRule }))}
         >
         <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
           <table className="w-full text-sm">
@@ -172,7 +168,12 @@ export default async function ItemsPage(props: PageProps<"/items">) {
                 <th className="px-4 py-2">Cost</th>
                 <th className="px-4 py-2">Qty</th>
                 {stores.map((c) => (
-                  <th key={c.id} className="whitespace-nowrap px-4 py-2">{MARKETPLACE_LABELS[c.marketplace]}</th>
+                  <th key={c.id} className="whitespace-nowrap px-4 py-2">
+                    <span className="flex items-center gap-2" title={storeLabel(c)}>
+                      <StoreLogo marketplace={c.marketplace} />
+                      {MARKETPLACE_LABELS[c.marketplace]}
+                    </span>
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -261,7 +262,7 @@ export default async function ItemsPage(props: PageProps<"/items">) {
                           itemTitle={item.title}
                           connectionId={c.id}
                           storeName={MARKETPLACE_LABELS[c.marketplace]}
-                          listing={cellListing(item, item.listings.find((l) => l.connectionId === c.id), c)}
+                          listing={cellListing(item, item.listings.find((l) => l.connectionId === c.id), c, photo ? thumbOf(photo.url) : null)}
                         />
                       </td>
                     ))}

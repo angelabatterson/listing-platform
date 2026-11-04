@@ -6,7 +6,7 @@ import { findItems, moveListing } from "@/app/(app)/items/inventory-actions";
 import { removeFromStore } from "@/app/(app)/items/store-listing-actions";
 import { StoreListingDialog } from "./store-listing-dialog";
 
-export type StoreCellListing = { status: string; priceCents: number; link: string | null; error: string | null };
+export type StoreCellListing = { status: string; priceCents: number; link: string | null; error: string | null; photo: string | null };
 
 const statusStyles: Record<string, string> = {
   listed: "bg-green-100 text-green-800",
@@ -38,7 +38,7 @@ export function StoreCell(props: {
   return (
     <>
       {l ? (
-        <div className="flex min-w-32 flex-col items-start gap-1">
+        <div className="flex min-w-28 flex-col items-start gap-1">
           <div className="flex items-center gap-2">
             <span className="font-medium">${(l.priceCents / 100).toFixed(2)}</span>
             {l.link && (
@@ -49,16 +49,29 @@ export function StoreCell(props: {
               </a>
             )}
           </div>
-          <span className={`whitespace-nowrap rounded px-2 py-0.5 text-xs ${statusStyles[l.status] ?? statusStyles.ended}`} title={l.error ?? undefined}>
-            {statusText[l.status] ?? l.status}
-          </span>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            title={l.error ?? `Edit the ${props.storeName} listing`}
+            className="w-24 overflow-hidden rounded-md border border-zinc-200 bg-white text-left hover:border-zinc-400"
+          >
+            {l.photo ? (
+              // eslint-disable-next-line @next/next/no-img-element -- photos come from many hosts
+              <img src={l.photo} alt="" className={`h-20 w-full object-cover ${l.status === "ended" ? "opacity-50 grayscale" : ""}`} loading="lazy" />
+            ) : (
+              <div className="h-20 w-full bg-zinc-100" />
+            )}
+            <span className={`block truncate px-1 py-0.5 text-center text-xs ${statusStyles[l.status] ?? statusStyles.ended}`}>
+              {statusText[l.status] ?? l.status}
+            </span>
+          </button>
           <StoreMenu {...props} link={l.link} onEdit={() => setOpen(true)} />
         </div>
       ) : (
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex h-20 w-32 flex-col items-center justify-center rounded-md border border-dashed border-zinc-300 text-xs text-zinc-600 hover:border-zinc-500 hover:text-zinc-900"
+          className="flex h-[6.5rem] w-24 flex-col items-center justify-center rounded-md border border-dashed border-zinc-300 text-xs text-zinc-600 hover:border-zinc-500 hover:text-zinc-900"
         >
           <span className="text-lg leading-none">+</span>
           List on {props.storeName}

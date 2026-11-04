@@ -73,6 +73,40 @@ describe.runIf(process.env.TEST_DATABASE_URL)("bulk crosslist and price rules", 
     expect((await db.select().from(items).where(eq(items.id, bare)))[0].status).toBe("draft");
   });
 
+  it("sets each store's price and shortens long titles", async () => {
+    delete process.env.ANTHROPIC_API_KEY; // no AI here, so titles are cut at a whole word
+    const long = "Vintage 1990s Levi's 501 straight leg denim jeans in light stonewash blue size 32 x 30 made in USA";
+    await db.update(items).set({ title: long }).where(eq(items.id, active));
+    await db.update(connections).set({ settings: { priceRule: { percent: 10, round: "none" } } }).where(eq(connections.id, posh));
+    const result = await crosslistItem(active, [posh, mercari], {
+      shortenTitles: true,
+      prices: { [posh]: { mode: "match", percent: 0 }, [mercari]: { mode: "percent", percent: -25 } },
+    });
+    expect(result).toEqual({ ok: true });
+    const rows = await db.select().from(channelListings).where(eq(channelListings.itemId, active));
+    const on = (id: string) => rows.find((r) => r.connectionId === id)!.overrides;
+    expect(on(posh).priceCents).toBe(4000);
+    expect(on(mercari).priceCents).toBe(3000);
+    expect(on(posh).title!.length).toBeLessThanOrEqual(80);
+    expect(long.startsWith(on(posh).title!)).toBe(true);
+
+    // "Price rule" takes a typed store price back off.
+    await crosslistItem(active, [posh], { prices: { [posh]: { mode: "rule", percent: 0 } } });
+    const [again] = await db.select().from(channelListings).where(eq(channelListings.connectionId, posh));
+    expect(again.overrides.priceCents).toBeUndefined();
+  });
+
+  it("saves drafts without posting, and won't quietly post listed items", async () => {
+    expect(await crosslistItem(draft, [mercari], { publish: false })).toEqual({ ok: true });
+    expect(await ticked(draft)).toEqual([mercari]);
+    expect((await db.select().from(items).where(eq(items.id, draft)))[0].status).toBe("draft");
+    expect(syncItem).not.toHaveBeenCalled();
+
+    const listed = await crosslistItem(active, [mercari], { publish: false });
+    expect(listed.ok).toBe(false);
+    expect(await ticked(active)).toEqual([posh]);
+  });
+
   it("refuses other accounts' items and saves price rules", async () => {
     const form = new FormData();
     form.set(`percent_${posh}`, "10");

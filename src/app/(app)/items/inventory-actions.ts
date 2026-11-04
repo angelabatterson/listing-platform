@@ -7,6 +7,9 @@ import { db } from "@/db";
 import { channelListings, connections, items } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { listingProblem } from "@/lib/billing/access";
+import { chosenPrice, crosslistOptionsSchema, withChoices, type CrosslistOptions } from "@/lib/crosslist";
+import { shortenTitle } from "@/lib/ai/shorten";
+import { TITLE_LIMITS } from "@/lib/marketplaces/overrides";
 import { postingProblems } from "@/lib/review";
 import { syncItem } from "@/lib/sync/run";
 
@@ -168,13 +171,16 @@ export async function moveListing(itemId: string, connectionId: string, targetIt
 
 export type CrosslistResult = { ok: boolean; message?: string };
 
-// One item from a bulk crosslist: tick the chosen stores on it and post it there. A draft
-// is posted to every store ticked on it, as "Post" on its batch would.
-export async function crosslistItem(itemId: string, connectionIds: string[]): Promise<CrosslistResult> {
+// One item from a bulk crosslist: tick the chosen stores on it, with the pop-up's price
+// and title choices, and post it there. A draft is posted to every store ticked on it, as
+// "Post" on its batch would. With `publish: false` a draft just gets the stores ticked.
+export async function crosslistItem(itemId: string, connectionIds: string[], options: CrosslistOptions = {}): Promise<CrosslistResult> {
   const user = await requireUser("items");
-  if (!id.safeParse(itemId).success || !connectionIds.length || !connectionIds.every((c) => id.safeParse(c).success)) {
+  const opts = crosslistOptionsSchema.safeParse(options);
+  if (!id.safeParse(itemId).success || !connectionIds.length || !connectionIds.every((c) => id.safeParse(c).success) || !opts.success) {
     return { ok: false, message: "Item or store not found." };
   }
+  const { shortenTitles, prices, publish } = opts.data;
   const [item, stores] = await Promise.all([
     db.query.items.findFirst({
       where: and(eq(items.id, itemId), eq(items.organizationId, user.organizationId)),
@@ -188,15 +194,33 @@ export async function crosslistItem(itemId: string, connectionIds: string[]): Pr
   if (item.status === "archived") return { ok: false, message: "Archived items can't be listed." };
   if (item.status === "sold_out" || item.quantity < 1) return { ok: false, message: "None left in stock." };
   const draft = item.status === "draft";
-  if (draft) {
+  if (!publish && !draft) {
+    return { ok: false, message: "It's already listed, so ticking more stores would post it right away. Choose Publish now for this one." };
+  }
+  if (draft && publish) {
     const limit = await listingProblem(user);
     if (limit) return { ok: false, message: limit };
   }
 
+  const shortened = new Map<string, string>();
   for (const store of stores) {
     const existing = item.listings.find((l) => l.connectionId === store.id);
-    if (existing) await db.update(channelListings).set({ enabled: true }).where(eq(channelListings.id, existing.id));
-    else await db.insert(channelListings).values({ itemId: item.id, connectionId: store.id, enabled: true });
+    const current = existing?.overrides ?? {};
+    const max = TITLE_LIMITS[store.marketplace];
+    const title = current.title || item.title;
+    let newTitle: string | undefined;
+    if (shortenTitles && max && title.length > max) {
+      const key = `${max}:${title}`;
+      if (!shortened.has(key)) shortened.set(key, await shortenTitle(title, max));
+      newTitle = shortened.get(key);
+    }
+    const overrides = withChoices(current, chosenPrice(item.priceCents, prices[store.id], store.settings.priceRule), newTitle);
+    if (existing) await db.update(channelListings).set({ enabled: true, overrides }).where(eq(channelListings.id, existing.id));
+    else await db.insert(channelListings).values({ itemId: item.id, connectionId: store.id, enabled: true, overrides });
+  }
+  if (!publish) {
+    revalidatePath("/items");
+    return { ok: true };
   }
 
   let outcomes;

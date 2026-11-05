@@ -3,8 +3,10 @@
 Static pages, no framework:
 
 - `site/` is the marketing site for **getrelistic.com** (Home, Pricing, About).
-- `docs/` is the help center for **doc.getrelistic.com**. Sidebar order is `DOC_GROUPS` in `build.mjs`.
+- `docs/` is the help center for **doc.getrelistic.com**. Sidebar order is `DOC_GROUPS` in `docs.mjs`.
 - `assets/` (styles, logo, screenshots) is copied into both.
+
+After changing a guide, run `node scripts/build-help-index.mjs` so Penny, the in-app help assistant, knows the new text (it writes `src/lib/help/articles.json`; a test fails if you forget).
 
 Each page is an HTML fragment that starts with a front-matter comment (`title`, `description`), wrapped in the layouts in `build.mjs`. `{{APP}}`, `{{SITE}}` and `{{DOCS}}` in a fragment become the three addresses.
 

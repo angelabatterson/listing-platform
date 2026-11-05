@@ -1,7 +1,7 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
-import type { BetaContentBlockParam } from "@anthropic-ai/sdk/resources/beta/messages/messages";
+import type { BetaContentBlockParam, BetaMessageParam } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import type { z } from "zod";
 
 export const AI_MODEL = "claude-opus-5-5";
@@ -25,12 +25,17 @@ export function jpegBlock(bytes: Buffer): BetaContentBlockParam {
 // One request that must come back as JSON matching `schema`. If the model declines,
 // `fallbacks: "default"` retries on Anthropic's recommended fallback model; a refusal
 // that still comes back means every model declined.
+// Pass `content` for a single question, or `messages` for a conversation. `cacheSystem`
+// caches a long system prompt that is the same on every request (like Penny's guides).
 export async function askForJson<S extends z.ZodType>(options: {
   schema: S;
   system: string;
-  content: BetaContentBlockParam[];
+  content?: BetaContentBlockParam[];
+  messages?: BetaMessageParam[];
+  cacheSystem?: boolean;
   effort: "low" | "medium" | "high";
   maxTokens: number;
+  refusal?: string;
 }): Promise<z.infer<S>> {
   if (!aiIsConfigured()) throw new AiError("The AI assistant isn't set up yet (ANTHROPIC_API_KEY is missing).");
 
@@ -41,12 +46,14 @@ export async function askForJson<S extends z.ZodType>(options: {
     fallbacks: "default",
     thinking: { type: "adaptive" },
     output_config: { effort: options.effort, format: betaZodOutputFormat(options.schema) },
-    system: options.system,
-    messages: [{ role: "user", content: options.content }],
+    system: options.cacheSystem
+      ? [{ type: "text", text: options.system, cache_control: { type: "ephemeral" } }]
+      : options.system,
+    messages: options.messages ?? [{ role: "user", content: options.content ?? [] }],
   });
 
   if (response.stop_reason === "refusal") {
-    throw new AiError("The AI declined to describe these photos. Fill this one in by hand.");
+    throw new AiError(options.refusal ?? "The AI declined to describe these photos. Fill this one in by hand.");
   }
   if (response.stop_reason === "max_tokens" || !response.parsed_output) {
     throw new AiError("The AI's answer was cut off. Try again.");

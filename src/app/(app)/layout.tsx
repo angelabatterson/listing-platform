@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { logout } from "@/app/(auth)/actions";
+import { Penny } from "@/components/penny";
 import { SideNav } from "@/components/side-nav";
 import { requireUser } from "@/lib/auth";
 import { getAccess } from "@/lib/billing/access";
@@ -69,6 +70,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           endorsed or certified by Etsy, Inc.
         </footer>
       </div>
+      {!shut && <Penny />}
     </div>
   );
 }

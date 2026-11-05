@@ -2,9 +2,10 @@
 // into website/dist/site and website/dist/docs. No dependencies: each page in site/ and
 // docs/ is an HTML fragment with a front-matter comment, wrapped in the layouts below.
 //   node website/build.mjs
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { DOC_GROUPS, read } from "./docs.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const dist = join(root, "dist");
@@ -14,27 +15,6 @@ const DOCS = "https://doc.getrelistic.com";
 const APP = "https://app.getrelistic.com";
 const YEAR = 2026;
 const CONTACT = "angela.b@apeirosmarketing.com";
-
-// Help articles, in sidebar order.
-const DOC_GROUPS = [
-  ["Start here", ["getting-started", "install-app", "connect-stores", "chrome-extension"]],
-  ["Listing", ["add-items", "photo-batches", "bulk-crosslist", "import-listings", "organize-inventory"]],
-  ["Selling", ["sales-sync", "sales-profit", "shipping-labels", "automations", "dashboard-crm"]],
-  ["Your account", ["team-logins", "billing-account", "faq"]],
-];
-
-function read(path) {
-  const raw = readFileSync(path, "utf8");
-  const m = raw.match(/^<!--\n([\s\S]*?)\n-->\n/);
-  if (!m) throw new Error(`${path}: missing front matter`);
-  const meta = Object.fromEntries(
-    m[1].split("\n").map((line) => {
-      const i = line.indexOf(":");
-      return [line.slice(0, i).trim(), line.slice(i + 1).trim()];
-    }),
-  );
-  return { ...meta, body: raw.slice(m[0].length) };
-}
 
 function write(path, html) {
   mkdirSync(dirname(path), { recursive: true });

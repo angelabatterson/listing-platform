@@ -153,7 +153,7 @@ export default async function ItemsPage(props: PageProps<"/items">) {
         </div>
       ) : (
         <BulkCrosslist
-          items={rows.map((r) => ({ id: r.id, title: r.title, priceCents: r.priceCents, draft: r.status === "draft" }))}
+          items={rows.map((r) => ({ id: r.id, title: r.title, priceCents: r.priceCents, draft: r.status === "draft", sold: r.status === "sold_out" }))}
           stores={stores.map((c) => ({ id: c.id, label: storeLabel(c), marketplace: c.marketplace, rule: c.settings.priceRule }))}
         >
         <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">

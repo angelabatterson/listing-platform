@@ -9,15 +9,17 @@ import { formatPrice } from "@/lib/marketplaces/ebay/mapping";
 import { TITLE_LIMITS } from "@/lib/marketplaces/overrides";
 import { eachLimited } from "@/lib/photos/resize";
 import { describeRule, hasRule, type PriceRule } from "@/lib/price-rules";
+import { SelectionBar } from "./selection-bar";
 import { StoreLogo } from "./store-logo";
 
-export type BulkItem = { id: string; title: string; priceCents: number; draft: boolean };
+export type BulkItem = { id: string; title: string; priceCents: number; draft: boolean; sold: boolean };
 export type BulkStore = { id: string; label: string; marketplace: Connection["marketplace"]; rule?: PriceRule };
 
 type Bulk = { picked: Set<string>; toggle: (id: string, on: boolean) => void; setAll: (on: boolean) => void; ids: string[] };
 const BulkContext = createContext<Bulk | null>(null);
 
-// Ticks on the Inventory rows, for listing many items on more stores at once.
+// Ticks on the Inventory rows. Ticking items opens the selection bar (selection-bar.tsx)
+// with Edit, Sync, Crosslist, Tags, Delist and Delete.
 export function BulkCrosslist(props: {
   items: BulkItem[];
   stores: BulkStore[];
@@ -40,7 +42,9 @@ export function BulkCrosslist(props: {
   return (
     <BulkContext.Provider value={bulk}>
       {props.children}
-      {picked.size > 0 && <BulkBar items={props.items} stores={props.stores} onDone={() => setPicked(new Set())} />}
+      {picked.size > 0 && (
+        <SelectionBar items={props.items.filter((i) => picked.has(i.id))} stores={props.stores} onClear={() => setPicked(new Set())} />
+      )}
     </BulkContext.Provider>
   );
 }
@@ -69,37 +73,6 @@ export function SelectAll() {
 
 type Result = { title: string; ok: boolean; message?: string };
 
-function BulkBar(props: { items: BulkItem[]; stores: BulkStore[]; onDone: () => void }) {
-  const bulk = useContext(BulkContext)!;
-  const [open, setOpen] = useState(false);
-  const chosen = props.items.filter((i) => bulk.picked.has(i.id));
-  const label = `Crosslist ${chosen.length} ${chosen.length === 1 ? "item" : "items"}`;
-  return (
-    <div className="sticky bottom-0 z-20 mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-zinc-300 bg-white p-3 text-sm shadow-lg">
-      <span className="font-medium">
-        {chosen.length} {chosen.length === 1 ? "item" : "items"} selected
-      </span>
-      <button type="button" className="btn" onClick={() => setOpen(true)} disabled={!props.stores.length}>
-        {label}
-      </button>
-      <button type="button" className="text-zinc-600 underline" onClick={props.onDone}>
-        Clear
-      </button>
-      {!props.stores.length && <span className="text-zinc-500">Connect a store first, on the Stores page.</span>}
-      {open && (
-        <CrosslistDialog
-          items={chosen}
-          stores={props.stores}
-          onClose={(finished) => {
-            setOpen(false);
-            if (finished) props.onDone();
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
 type PriceMode = "rule" | "match" | "up" | "down";
 type PriceChoice = { mode: PriceMode; percent: string };
 const STEPS = ["Stores and titles", "Prices", "Drafts or publish"];
@@ -113,7 +86,7 @@ function toChoice(c: PriceChoice): CrosslistPrice {
 
 // The "Crosslist items" pop-up: pick stores and title handling, then each store's
 // price, then whether to post now or keep the items as drafts.
-function CrosslistDialog(props: { items: BulkItem[]; stores: BulkStore[]; onClose: (finished: boolean) => void }) {
+export function CrosslistDialog(props: { items: BulkItem[]; stores: BulkStore[]; onClose: (finished: boolean) => void }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [stores, setStores] = useState<Set<string>>(() => new Set());
